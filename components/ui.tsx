@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import Colors from '@/constants/colors';
-
+import Colors from '@/app/components/constants/colors';
 type StatusType = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
 const statusColors: Record<StatusType, { bg: string; text: string }> = {
