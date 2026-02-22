@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
+import { useAuth } from './AuthContext';
 
 export type LeaveStatus = 'Draft' | 'Submitted' | 'Pending_Manager' | 'Pending_HR' | 'Approved' | 'Rejected' | 'Escalated';
 export type LeaveType = 'Annual' | 'Sick' | 'Personal' | 'Maternity' | 'Paternity' | 'Bereavement';
@@ -79,6 +80,7 @@ export type NotificationType = 'action_required' | 'status_update' | 'announceme
 
 export interface Notification {
   id: string;
+  userId: string;
   title: string;
   body: string;
   type: NotificationType;
@@ -192,10 +194,10 @@ function getSeedData() {
   ];
 
   const notifications: Notification[] = [
-    { id: 'n1', title: 'Leave Pending Approval', body: 'Your annual leave request is pending manager approval', type: 'status_update', entityType: 'leave', entityId: 'l1', isRead: false, createdAt: weekAgo },
-    { id: 'n2', title: 'Ticket Update', body: 'Priya Sharma commented on your VPN ticket', type: 'status_update', entityType: 'ticket', entityId: 't1', isRead: false, createdAt: weekAgo },
-    { id: 'n3', title: 'Expense Submitted', body: 'Your client dinner expense is pending approval', type: 'action_required', entityType: 'expense', entityId: 'e1', isRead: true, createdAt: weekAgo },
-    { id: 'n4', title: 'Company Update', body: 'Office closed on March 1st for maintenance', type: 'announcement', isRead: false, createdAt: now },
+    { id: 'n1', userId: 'u1', title: 'Leave Pending Approval', body: 'Your annual leave request is pending manager approval', type: 'status_update', entityType: 'leave', entityId: 'l1', isRead: false, createdAt: weekAgo },
+    { id: 'n2', userId: 'u1', title: 'Ticket Update', body: 'Priya Sharma commented on your VPN ticket', type: 'status_update', entityType: 'ticket', entityId: 't1', isRead: false, createdAt: weekAgo },
+    { id: 'n3', userId: 'u1', title: 'Expense Submitted', body: 'Your client dinner expense is pending approval', type: 'action_required', entityType: 'expense', entityId: 'e1', isRead: true, createdAt: weekAgo },
+    { id: 'n4', userId: 'u1', title: 'Company Update', body: 'Office closed on March 1st for maintenance', type: 'announcement', isRead: false, createdAt: now },
   ];
 
   const leaveBalance: LeaveBalance = { annual: 15, sick: 8, personal: 3 };
@@ -210,6 +212,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance>({ annual: 15, sick: 8, personal: 3 });
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   const loadData = useCallback(async () => {
     const seeded = await AsyncStorage.getItem(STORAGE_KEYS.seeded);
@@ -248,12 +251,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(key, JSON.stringify(data));
   }, []);
 
+  const addNotification = useCallback(async (notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => {
+    const newNotif: Notification = { ...notif, id: Crypto.randomUUID(), isRead: false, createdAt: new Date().toISOString() };
+    setNotifications(prev => {
+      const updated = [newNotif, ...prev];
+      persist(STORAGE_KEYS.notifications, updated);
+      return updated;
+    });
+  }, [persist]);
+
   const createLeave = useCallback(async (leave: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'approvalHistory'>) => {
     const now = new Date().toISOString();
     const newLeave: LeaveRequest = {
       ...leave,
       id: Crypto.randomUUID(),
-      status: 'Submitted',
+      status: 'Pending_Manager',
       approvalHistory: [{ approverId: leave.employeeId, approverName: leave.employeeName, action: 'submit', comment: 'Submitted for approval', timestamp: now }],
       createdAt: now,
       updatedAt: now,
@@ -261,8 +273,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const updated = [newLeave, ...leaves];
     setLeaves(updated);
     await persist(STORAGE_KEYS.leaves, updated);
+
+    // Notify Manager
+    if (leave.managerId) {
+      await addNotification({
+        userId: leave.managerId,
+        title: 'New Approval Request',
+        body: `${leave.employeeName} submitted a ${leave.leaveType} leave request.`,
+        type: 'action_required',
+        entityType: 'leave',
+        entityId: newLeave.id,
+      });
+    }
+
     return newLeave;
-  }, [leaves, persist]);
+  }, [leaves, persist, addNotification]);
 
   const updateLeaveStatus = useCallback(async (id: string, status: LeaveStatus, approverId: string, approverName: string, comment: string) => {
     const now = new Date().toISOString();
@@ -325,6 +350,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const newExpense: Expense = {
       ...expense,
       id: Crypto.randomUUID(),
+      status: 'Pending_Manager',
       approvalHistory: [{ approverId: expense.submittedBy, approverName: expense.submittedByName, action: 'submit', comment: 'Submitted', timestamp: now }],
       createdAt: now,
       updatedAt: now,
@@ -332,8 +358,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const updated = [newExpense, ...expenses];
     setExpenses(updated);
     await persist(STORAGE_KEYS.expenses, updated);
+
+    // Notify Manager
+    await addNotification({
+      userId: 'u2', // Sarah Chen (Manager)
+      title: 'New Approval Request',
+      body: `${expense.submittedByName} submitted an expense for approval.`,
+      type: 'action_required',
+      entityType: 'expense',
+      entityId: newExpense.id,
+    });
+
     return newExpense;
-  }, [expenses, persist]);
+  }, [expenses, persist, addNotification]);
 
   const updateExpenseStatus = useCallback(async (id: string, status: ExpenseStatus, approverId: string, approverName: string, comment: string) => {
     const now = new Date().toISOString();
@@ -360,25 +397,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await persist(STORAGE_KEYS.notifications, updated);
   }, [notifications, persist]);
 
-  const addNotification = useCallback(async (notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => {
-    const newNotif: Notification = { ...notif, id: Crypto.randomUUID(), isRead: false, createdAt: new Date().toISOString() };
-    const updated = [newNotif, ...notifications];
-    setNotifications(updated);
-    await persist(STORAGE_KEYS.notifications, updated);
-  }, [notifications, persist]);
 
-  const unreadCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
+  const userNotifications = useMemo(() => {
+    if (!user) return [];
+    return notifications.filter(n => n.userId === user.id);
+  }, [notifications, user]);
+
+  const unreadCount = useMemo(() => userNotifications.filter(n => !n.isRead).length, [userNotifications]);
 
   const value = useMemo(() => ({
-    leaves, tickets, expenses, notifications, leaveBalance,
+    leaves, tickets, expenses,
+    notifications: userNotifications,
+    leaveBalance,
     createLeave, updateLeaveStatus,
     createTicket, addTicketComment, updateTicketStatus,
     createExpense, updateExpenseStatus,
     markNotificationRead, addNotification,
     unreadCount, refreshData: loadData, isLoading,
-  }), [leaves, tickets, expenses, notifications, leaveBalance, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
+  }), [leaves, tickets, expenses, userNotifications, leaveBalance, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
 
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={value as any}>{children}</DataContext.Provider>;
 }
 
 export function useData() {

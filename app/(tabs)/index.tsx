@@ -5,20 +5,30 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
-import { useAuth, getRoleLabel, getRoleBadgeColor } from '@/contexts/AuthContext';
+import { useAuth, getRoleLabel, getRoleBadgeColor, UserRole } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, Avatar, SectionHeader } from '@/components/ui';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 const { width } = Dimensions.get('window');
-
 const P = Pressable as any;
 
-const QUICK_ACTIONS = [
+interface Action {
+  id: string;
+  icon: string;
+  label: string;
+  color: string;
+  route: string;
+  roles?: UserRole[];
+}
+
+const ALL_ACTIONS: Action[] = [
   { id: 'leave', icon: 'calendar', label: 'Leave', color: '#38BDF8', route: '/new-leave' },
   { id: 'ticket', icon: 'headphones', label: 'Support', color: '#34D399', route: '/new-ticket' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
   { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
+  { id: 'hr', icon: 'heart', label: 'HR Hub', color: '#FB7185', route: '/(tabs)/hr', roles: ['HR_ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
+  { id: 'finance', icon: 'dollar-sign', label: 'Finance', color: '#FBBF24', route: '/(tabs)/expenses', roles: ['FINANCE_ADMIN', 'SUPER_ADMIN'] },
 ];
 
 export default function DashboardScreen() {
@@ -27,19 +37,25 @@ export default function DashboardScreen() {
   const { leaves, tickets, expenses, leaveBalance, unreadCount, refreshData } = useData();
   const [refreshing, setRefreshing] = useState(false);
 
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshData();
     setRefreshing(false);
   }, [refreshData]);
 
+  const roleActions = useMemo(() => {
+    return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 4);
+  }, [user?.role]);
+
   const pendingLeaves = leaves.filter(l => l.status.startsWith('Pending'));
   const activeTickets = tickets.filter(t => !['Resolved', 'Closed'].includes(t.status));
   const pendingExpenses = expenses.filter(e => e.status.startsWith('Pending'));
+
+  const isManagement = ['MANAGER', 'HR_ADMIN', 'IT_ADMIN', 'FINANCE_ADMIN', 'SUPER_ADMIN'].includes(user?.role || '');
+
+  if (!isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -90,7 +106,7 @@ export default function DashboardScreen() {
 
           <SectionHeader title="Quick Actions" />
           <View style={styles.quickGrid}>
-            {QUICK_ACTIONS.map((action, index) => (
+            {roleActions.map((action, index) => (
               <Animated.View
                 key={action.id}
                 entering={FadeInUp.delay(400 + (index * 100)).duration(500)}
@@ -112,31 +128,54 @@ export default function DashboardScreen() {
             ))}
           </View>
 
-          <SectionHeader title="Vacation Balance" />
-          <View style={styles.balanceRow}>
-            {[
-              { label: 'Annual', value: leaveBalance.annual, color: Colors.accent },
-              { label: 'Sick', value: leaveBalance.sick, color: Colors.success },
-              { label: 'Personal', value: leaveBalance.personal, color: Colors.secondary },
-            ].map((b, index) => (
-              <Card key={b.label} style={styles.balanceCard} delay={500 + (index * 100)}>
-                <Text style={[styles.balanceValue, { color: b.color }]}>{b.value}</Text>
-                <Text style={styles.balanceLabel}>{b.label}</Text>
-              </Card>
-            ))}
-          </View>
+          {isManagement ? (
+            <>
+              <SectionHeader title="Management Overview" />
+              <View style={styles.summaryRow}>
+                {[
+                  { icon: 'users', value: pendingLeaves.length, label: 'Approvals', color: Colors.accent },
+                  { icon: 'alert-circle', value: activeTickets.length, label: 'Active Issues', color: Colors.success },
+                  { icon: 'trending-up', value: pendingExpenses.length, label: 'Pending Payouts', color: Colors.warning },
+                ].map((s, index) => (
+                  <Card key={s.label} style={styles.summaryCard} delay={600 + (index * 100)}>
+                    <View style={styles.summaryHeader}>
+                      <Feather name={s.icon as any} size={14} color={s.color} />
+                    </View>
+                    <Text style={styles.summaryValue}>{s.value}</Text>
+                    <Text style={styles.summaryLabel}>{s.label}</Text>
+                  </Card>
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              <SectionHeader title="Your Balance" />
+              <View style={styles.balanceRow}>
+                {[
+                  { label: 'Annual', value: leaveBalance.annual, color: Colors.accent },
+                  { label: 'Sick', value: leaveBalance.sick, color: Colors.success },
+                  { label: 'Personal', value: leaveBalance.personal, color: Colors.secondary },
+                ].map((b, index) => (
+                  <Card key={b.label} style={styles.balanceCard} delay={500 + (index * 100)}>
+                    <Text style={[styles.balanceValue, { color: b.color }]}>{b.value}</Text>
+                    <Text style={styles.balanceLabel}>{b.label}</Text>
+                  </Card>
+                ))}
+              </View>
+            </>
+          )}
 
-          <SectionHeader title="Active Requests" />
+          <SectionHeader title="Active Tracks" />
           <View style={styles.summaryRow}>
             {[
-              { icon: 'calendar', value: pendingLeaves.length, label: 'Leaves', color: Colors.accent },
-              { icon: 'headphones', value: activeTickets.length, label: 'Tickets', color: Colors.success },
-              { icon: 'credit-card', value: pendingExpenses.length, label: 'Expenses', color: Colors.warning },
+              { icon: 'calendar', value: leaves.filter(l => l.employeeId === user?.id && l.status === 'Pending_Manager').length, label: 'My Leaves', color: Colors.accent },
+              { icon: 'headphones', value: tickets.filter(t => t.createdBy === user?.id && t.status !== 'Resolved').length, label: 'My Tickets', color: Colors.success },
+              { icon: 'credit-card', value: expenses.filter(e => e.submittedBy === user?.id && e.status === 'Pending_Manager').length, label: 'My Expenses', color: Colors.warning },
             ].map((s, index) => (
               <Card key={s.label} style={styles.summaryCard} delay={800 + (index * 100)}>
                 <View style={styles.summaryHeader}>
                   <Feather name={s.icon as any} size={14} color={s.color} />
-                  <Text style={[styles.summaryStatus, { color: s.color }]}>Pending</Text>
+                  <Text style={[styles.summaryStatus, { color: s.color }]}>Live</Text>
                 </View>
                 <Text style={styles.summaryValue}>{s.value}</Text>
                 <Text style={styles.summaryLabel}>{s.label}</Text>
@@ -147,7 +186,7 @@ export default function DashboardScreen() {
           {leaves.length > 0 && (
             <>
               <SectionHeader title="Recent Activity" actionLabel="History" onAction={() => router.push('/(tabs)/hr')} />
-              {leaves.slice(0, 2).map((leave, index) => (
+              {(isManagement ? leaves : leaves.filter(l => l.employeeId === user?.id)).slice(0, 2).map((leave, index) => (
                 <Card key={leave.id} onPress={() => { }} delay={1000 + (index * 100)}>
                   <View style={styles.activityRow}>
                     <View style={styles.activityIconCircle}>
@@ -155,7 +194,7 @@ export default function DashboardScreen() {
                     </View>
                     <View style={styles.activityInfo}>
                       <Text style={styles.activityTitle}>{leave.leaveType} Leave</Text>
-                      <Text style={styles.activityMeta}>{leave.startDate} • {leave.endDate}</Text>
+                      <Text style={styles.activityMeta}>{leave.employeeName} • {leave.startDate}</Text>
                     </View>
                     <StatusBadge label={formatStatus(leave.status)} type={getStatusType(leave.status)} />
                   </View>
@@ -166,8 +205,8 @@ export default function DashboardScreen() {
 
           {tickets.length > 0 && (
             <>
-              <SectionHeader title="Recent Tickets" actionLabel="See all" onAction={() => router.push('/(tabs)/tickets')} />
-              {tickets.slice(0, 2).map((ticket, index) => (
+              <SectionHeader title="Support Tickets" actionLabel="See all" onAction={() => router.push('/(tabs)/tickets')} />
+              {(user?.role === 'IT_ADMIN' ? tickets : tickets.filter(t => t.createdBy === user?.id)).slice(0, 2).map((ticket, index) => (
                 <Card key={ticket.id} onPress={() => { }} delay={1200 + (index * 100)}>
                   <View style={styles.activityRow}>
                     <View style={[styles.activityIconCircle, { backgroundColor: Colors.successLight }]}>
@@ -175,7 +214,7 @@ export default function DashboardScreen() {
                     </View>
                     <View style={styles.activityInfo}>
                       <Text style={styles.activityTitle}>{ticket.title}</Text>
-                      <Text style={styles.activityMeta}>{ticket.category} • {ticket.priority}</Text>
+                      <Text style={styles.activityMeta}>{ticket.createdByName} • {ticket.priority}</Text>
                     </View>
                     <StatusBadge label={formatStatus(ticket.status)} type={getStatusType(ticket.status)} />
                   </View>
@@ -195,8 +234,8 @@ const styles = StyleSheet.create({
   content: { gap: 12 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  greeting: { fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter_400Regular' },
-  userName: { fontSize: 32, fontWeight: '800', color: '#fff', fontFamily: 'Inter_900Black', marginTop: 2, letterSpacing: -1 },
+  greeting: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
+  userName: { fontSize: 32, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -1 },
   notifBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   notifBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.background },
   notifBadgeText: { fontSize: 10, fontWeight: '900', color: '#fff' },

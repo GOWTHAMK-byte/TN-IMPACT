@@ -1,6 +1,4 @@
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { NativeTabs, Icon, Label, Badge } from 'expo-router/unstable-native-tabs';
 import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,42 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import { useData } from '@/contexts/DataContext';
 
-function NativeTabLayout() {
+export default function TabLayout() {
+  const safeAreaInsets = useSafeAreaInsets();
   const { unreadCount } = useData();
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="hr">
-        <Icon sf={{ default: 'calendar', selected: 'calendar' }} />
-        <Label>HR</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="tickets">
-        <Icon sf={{ default: 'wrench.and.screwdriver', selected: 'wrench.and.screwdriver.fill' }} />
-        <Label>IT</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="expenses">
-        <Icon sf={{ default: 'dollarsign.circle', selected: 'dollarsign.circle.fill' }} />
-        <Label>Finance</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="more">
-        <Icon sf={{ default: 'ellipsis.circle', selected: 'ellipsis.circle.fill' }} />
-        <Label>More</Label>
-        {unreadCount > 0 && <Badge>{String(unreadCount)}</Badge>}
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
-  const colorScheme = useColorScheme();
   const isWeb = Platform.OS === 'web';
   const isIOS = Platform.OS === 'ios';
   const isAndroid = Platform.OS === 'android';
-  const safeAreaInsets = useSafeAreaInsets();
-  const { unreadCount } = useData();
 
   return (
     <Tabs
@@ -109,11 +77,4 @@ function ClassicTabLayout() {
       />
     </Tabs>
   );
-}
-
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
 }

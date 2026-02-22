@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData, LeaveType } from '@/contexts/DataContext';
 
 const LEAVE_TYPES: LeaveType[] = ['Annual', 'Sick', 'Personal', 'Maternity', 'Paternity', 'Bereavement'];
+const P = Pressable as any;
 
 export default function NewLeaveScreen() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export default function NewLeaveScreen() {
       startDate,
       endDate,
       reason,
-      status: 'Submitted',
+      status: 'Pending_Manager',
     });
     router.back();
   };
@@ -54,13 +55,13 @@ export default function NewLeaveScreen() {
       <Text style={styles.label}>Leave Type</Text>
       <View style={styles.typeGrid}>
         {LEAVE_TYPES.map(type => (
-          <Pressable
+          <P
             key={type}
             onPress={() => { setLeaveType(type); Haptics.selectionAsync(); }}
             style={[styles.typeChip, leaveType === type && styles.typeChipActive]}
           >
             <Text style={[styles.typeText, leaveType === type && styles.typeTextActive]}>{type}</Text>
-          </Pressable>
+          </P>
         ))}
       </View>
 
@@ -69,7 +70,7 @@ export default function NewLeaveScreen() {
         <Feather name="calendar" size={16} color={Colors.textSecondary} />
         <TextInput
           value={startDate}
-          onChangeText={t => setStartDate(formatDateInput(t))}
+          onChangeText={(t: string) => setStartDate(formatDateInput(t))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={Colors.textTertiary}
           style={styles.input}
@@ -83,7 +84,7 @@ export default function NewLeaveScreen() {
         <Feather name="calendar" size={16} color={Colors.textSecondary} />
         <TextInput
           value={endDate}
-          onChangeText={t => setEndDate(formatDateInput(t))}
+          onChangeText={(t: string) => setEndDate(formatDateInput(t))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={Colors.textTertiary}
           style={styles.input}
@@ -104,17 +105,17 @@ export default function NewLeaveScreen() {
         textAlignVertical="top"
       />
 
-      <Pressable
+      <P
         onPress={handleSubmit}
         disabled={!isValid || submitting}
-        style={({ pressed }) => [
+        style={({ pressed }: any) => [
           styles.submitBtn,
           (!isValid || submitting) && styles.submitBtnDisabled,
           pressed && isValid && !submitting && { transform: [{ scale: 0.98 }] },
         ]}
       >
         <Text style={styles.submitBtnText}>{submitting ? 'Submitting...' : 'Submit Leave Request'}</Text>
-      </Pressable>
+      </P>
     </ScrollView>
   );
 }

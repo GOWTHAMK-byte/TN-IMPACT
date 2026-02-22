@@ -19,6 +19,7 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   login: (email: string, role: UserRole) => Promise<void>;
+  register: (name: string, email: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -110,6 +111,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(demoUser);
   }, []);
 
+  const register = useCallback(async (name: string, email: string, role: UserRole) => {
+    const newUser: User = {
+      id: `u_${Date.now()}`,
+      name,
+      email,
+      role,
+      department: 'General',
+      avatar: name.substring(0, 2).toUpperCase(),
+      title: role === 'EMPLOYEE' ? 'Team Member' : 'Regional Lead',
+      phone: '+1 (555) 000-0000',
+    };
+    await AsyncStorage.setItem('currentUser', JSON.stringify(newUser));
+    setUser(newUser);
+  }, []);
+
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem('currentUser');
     setUser(null);
@@ -119,11 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     login,
+    register,
     logout,
     isAuthenticated: !!user,
-  }), [user, isLoading, login, logout]);
+  }), [user, isLoading, login, register, logout]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value as any}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

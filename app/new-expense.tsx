@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 
 const CATEGORIES = ['Meals & Entertainment', 'Travel', 'Office Supplies', 'Software', 'Training', 'Other'];
+const P = Pressable as any;
 
 export default function NewExpenseScreen() {
   const { user } = useAuth();
@@ -30,7 +31,7 @@ export default function NewExpenseScreen() {
       amount: parseFloat(amount),
       currency: 'USD',
       category,
-      status: 'Submitted',
+      status: 'Pending_Manager',
       submittedBy: user.id,
       submittedByName: user.name,
     });
@@ -60,7 +61,7 @@ export default function NewExpenseScreen() {
         <Text style={styles.currencySymbol}>$</Text>
         <TextInput
           value={amount}
-          onChangeText={t => setAmount(t.replace(/[^0-9.]/g, ''))}
+          onChangeText={(t: string) => setAmount(t.replace(/[^0-9.]/g, ''))}
           placeholder="0.00"
           placeholderTextColor={Colors.textTertiary}
           style={styles.input}
@@ -71,13 +72,13 @@ export default function NewExpenseScreen() {
       <Text style={styles.label}>Category</Text>
       <View style={styles.typeGrid}>
         {CATEGORIES.map(cat => (
-          <Pressable
+          <P
             key={cat}
             onPress={() => { setCategory(cat); Haptics.selectionAsync(); }}
             style={[styles.typeChip, category === cat && styles.typeChipActive]}
           >
             <Text style={[styles.typeText, category === cat && styles.typeTextActive]}>{cat}</Text>
-          </Pressable>
+          </P>
         ))}
       </View>
 
@@ -93,17 +94,17 @@ export default function NewExpenseScreen() {
         textAlignVertical="top"
       />
 
-      <Pressable
+      <P
         onPress={handleSubmit}
         disabled={!isValid || submitting}
-        style={({ pressed }) => [
+        style={({ pressed }: any) => [
           styles.submitBtn,
           (!isValid || submitting) && styles.submitBtnDisabled,
           pressed && isValid && !submitting && { transform: [{ scale: 0.98 }] },
         ]}
       >
         <Text style={styles.submitBtnText}>{submitting ? 'Submitting...' : 'Submit Expense'}</Text>
-      </Pressable>
+      </P>
     </ScrollView>
   );
 }

@@ -15,6 +15,8 @@ const PRIORITIES: { value: TicketPriority; color: string }[] = [
   { value: 'Critical', color: Colors.error },
 ];
 
+const P = Pressable as any;
+
 export default function NewTicketScreen() {
   const { user } = useAuth();
   const { createTicket } = useData();
@@ -63,20 +65,20 @@ export default function NewTicketScreen() {
       <Text style={styles.label}>Category</Text>
       <View style={styles.typeGrid}>
         {CATEGORIES.map(cat => (
-          <Pressable
+          <P
             key={cat}
             onPress={() => { setCategory(cat); Haptics.selectionAsync(); }}
             style={[styles.typeChip, category === cat && styles.typeChipActive]}
           >
             <Text style={[styles.typeText, category === cat && styles.typeTextActive]}>{cat}</Text>
-          </Pressable>
+          </P>
         ))}
       </View>
 
       <Text style={styles.label}>Priority</Text>
       <View style={styles.priorityRow}>
         {PRIORITIES.map(p => (
-          <Pressable
+          <P
             key={p.value}
             onPress={() => { setPriority(p.value); Haptics.selectionAsync(); }}
             style={[
@@ -86,7 +88,7 @@ export default function NewTicketScreen() {
           >
             <View style={[styles.priorityDot, { backgroundColor: priority === p.value ? '#fff' : p.color }]} />
             <Text style={[styles.priorityText, priority === p.value && { color: '#fff' }]}>{p.value}</Text>
-          </Pressable>
+          </P>
         ))}
       </View>
 
@@ -102,17 +104,17 @@ export default function NewTicketScreen() {
         textAlignVertical="top"
       />
 
-      <Pressable
+      <P
         onPress={handleSubmit}
         disabled={!isValid || submitting}
-        style={({ pressed }) => [
+        style={({ pressed }: any) => [
           styles.submitBtn,
           (!isValid || submitting) && styles.submitBtnDisabled,
           pressed && isValid && !submitting && { transform: [{ scale: 0.98 }] },
         ]}
       >
         <Text style={styles.submitBtnText}>{submitting ? 'Creating...' : 'Create Ticket'}</Text>
-      </Pressable>
+      </P>
     </ScrollView>
   );
 }

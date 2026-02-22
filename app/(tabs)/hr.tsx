@@ -117,7 +117,7 @@ export default function HRScreen() {
 
       <FlatList
         data={filteredLeaves}
-        renderItem={renderLeave}
+        renderItem={({ item }: { item: LeaveRequest }) => renderLeave({ item })}
         keyExtractor={item => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 118 : 100 }]}
         scrollEnabled={!!filteredLeaves.length}
