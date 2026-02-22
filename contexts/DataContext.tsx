@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
+import { apiClient } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
 export type LeaveStatus = 'Draft' | 'Submitted' | 'Pending_Manager' | 'Pending_HR' | 'Approved' | 'Rejected' | 'Escalated';
@@ -80,7 +79,6 @@ export type NotificationType = 'action_required' | 'status_update' | 'announceme
 
 export interface Notification {
   id: string;
-  userId: string;
   title: string;
   body: string;
   type: NotificationType;
@@ -118,305 +116,133 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
-const STORAGE_KEYS = {
-  leaves: 'servicehub_leaves',
-  tickets: 'servicehub_tickets',
-  expenses: 'servicehub_expenses',
-  notifications: 'servicehub_notifications',
-  leaveBalance: 'servicehub_leave_balance',
-  seeded: 'servicehub_seeded',
-};
-
-function getSeedData() {
-  const now = new Date().toISOString();
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
-
-  const leaves: LeaveRequest[] = [
-    {
-      id: 'l1', employeeId: 'u1', employeeName: 'Alex Rivera', managerId: 'u2',
-      leaveType: 'Annual', startDate: '2026-03-10', endDate: '2026-03-14',
-      reason: 'Family vacation', status: 'Pending_Manager',
-      approvalHistory: [{ approverId: 'u1', approverName: 'Alex Rivera', action: 'submit', comment: 'Submitted for approval', timestamp: weekAgo }],
-      createdAt: weekAgo, updatedAt: weekAgo,
-    },
-    {
-      id: 'l2', employeeId: 'u1', employeeName: 'Alex Rivera', managerId: 'u2',
-      leaveType: 'Sick', startDate: '2026-02-05', endDate: '2026-02-06',
-      reason: 'Not feeling well', status: 'Approved',
-      approvalHistory: [
-        { approverId: 'u1', approverName: 'Alex Rivera', action: 'submit', comment: 'Submitted', timestamp: twoWeeksAgo },
-        { approverId: 'u2', approverName: 'Sarah Chen', action: 'approve', comment: 'Get well soon', timestamp: weekAgo },
-      ],
-      createdAt: twoWeeksAgo, updatedAt: weekAgo,
-    },
-  ];
-
-  const tickets: Ticket[] = [
-    {
-      id: 't1', title: 'VPN connection issues', description: 'Unable to connect to corporate VPN from home network',
-      category: 'Network', priority: 'High', status: 'In_Progress',
-      createdBy: 'u1', createdByName: 'Alex Rivera', assignedTo: 'u4', assignedToName: 'Priya Sharma',
-      comments: [
-        { id: 'tc1', authorId: 'u4', authorName: 'Priya Sharma', content: 'Looking into this. Can you try resetting your VPN client?', createdAt: weekAgo },
-      ],
-      slaDeadline: new Date(Date.now() + 24 * 3600000).toISOString(),
-      createdAt: weekAgo, updatedAt: weekAgo,
-    },
-    {
-      id: 't2', title: 'New laptop setup', description: 'Need new MacBook Pro setup for development work',
-      category: 'Hardware', priority: 'Medium', status: 'Open',
-      createdBy: 'u1', createdByName: 'Alex Rivera',
-      comments: [],
-      slaDeadline: new Date(Date.now() + 72 * 3600000).toISOString(),
-      createdAt: now, updatedAt: now,
-    },
-  ];
-
-  const expenses: Expense[] = [
-    {
-      id: 'e1', title: 'Client dinner', description: 'Dinner with Acme Corp stakeholders',
-      amount: 245.50, currency: 'USD', category: 'Meals & Entertainment',
-      status: 'Pending_Manager', submittedBy: 'u1', submittedByName: 'Alex Rivera',
-      approvalHistory: [{ approverId: 'u1', approverName: 'Alex Rivera', action: 'submit', comment: 'Business dinner', timestamp: weekAgo }],
-      createdAt: weekAgo, updatedAt: weekAgo,
-    },
-    {
-      id: 'e2', title: 'Conference travel', description: 'Flight and hotel for React Summit 2026',
-      amount: 1850.00, currency: 'USD', category: 'Travel',
-      status: 'Approved', submittedBy: 'u1', submittedByName: 'Alex Rivera',
-      approvalHistory: [
-        { approverId: 'u1', approverName: 'Alex Rivera', action: 'submit', comment: 'Annual conference', timestamp: twoWeeksAgo },
-        { approverId: 'u2', approverName: 'Sarah Chen', action: 'approve', comment: 'Approved', timestamp: weekAgo },
-      ],
-      createdAt: twoWeeksAgo, updatedAt: weekAgo,
-    },
-  ];
-
-  const notifications: Notification[] = [
-    { id: 'n1', userId: 'u1', title: 'Leave Pending Approval', body: 'Your annual leave request is pending manager approval', type: 'status_update', entityType: 'leave', entityId: 'l1', isRead: false, createdAt: weekAgo },
-    { id: 'n2', userId: 'u1', title: 'Ticket Update', body: 'Priya Sharma commented on your VPN ticket', type: 'status_update', entityType: 'ticket', entityId: 't1', isRead: false, createdAt: weekAgo },
-    { id: 'n3', userId: 'u1', title: 'Expense Submitted', body: 'Your client dinner expense is pending approval', type: 'action_required', entityType: 'expense', entityId: 'e1', isRead: true, createdAt: weekAgo },
-    { id: 'n4', userId: 'u1', title: 'Company Update', body: 'Office closed on March 1st for maintenance', type: 'announcement', isRead: false, createdAt: now },
-  ];
-
-  const leaveBalance: LeaveBalance = { annual: 15, sick: 8, personal: 3 };
-
-  return { leaves, tickets, expenses, notifications, leaveBalance };
-}
-
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance>({ annual: 15, sick: 8, personal: 3 });
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
 
   const loadData = useCallback(async () => {
-    const seeded = await AsyncStorage.getItem(STORAGE_KEYS.seeded);
-    if (!seeded) {
-      const seed = getSeedData();
-      await AsyncStorage.multiSet([
-        [STORAGE_KEYS.leaves, JSON.stringify(seed.leaves)],
-        [STORAGE_KEYS.tickets, JSON.stringify(seed.tickets)],
-        [STORAGE_KEYS.expenses, JSON.stringify(seed.expenses)],
-        [STORAGE_KEYS.notifications, JSON.stringify(seed.notifications)],
-        [STORAGE_KEYS.leaveBalance, JSON.stringify(seed.leaveBalance)],
-        [STORAGE_KEYS.seeded, 'true'],
-      ]);
-      setLeaves(seed.leaves);
-      setTickets(seed.tickets);
-      setExpenses(seed.expenses);
-      setNotifications(seed.notifications);
-      setLeaveBalance(seed.leaveBalance);
-    } else {
-      const [l, t, e, n, lb] = await AsyncStorage.multiGet([
-        STORAGE_KEYS.leaves, STORAGE_KEYS.tickets, STORAGE_KEYS.expenses,
-        STORAGE_KEYS.notifications, STORAGE_KEYS.leaveBalance,
-      ]);
-      setLeaves(l[1] ? JSON.parse(l[1]) : []);
-      setTickets(t[1] ? JSON.parse(t[1]) : []);
-      setExpenses(e[1] ? JSON.parse(e[1]) : []);
-      setNotifications(n[1] ? JSON.parse(n[1]) : []);
-      setLeaveBalance(lb[1] ? JSON.parse(lb[1]) : { annual: 15, sick: 8, personal: 3 });
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
-  }, []);
+
+    try {
+      setIsLoading(true);
+      const [leavesData, ticketsData, expensesData, notificationsData, balanceData] = await Promise.all([
+        apiClient.getLeaves().catch(() => []),
+        apiClient.getTickets().catch(() => []),
+        apiClient.getExpenses().catch(() => []),
+        apiClient.getNotifications().catch(() => []),
+        apiClient.getLeaveBalance().catch(() => ({ annual: 15, sick: 8, personal: 3 })),
+      ]);
+
+      setLeaves(leavesData);
+      setTickets(ticketsData);
+      setExpenses(expensesData);
+      setNotifications(notificationsData);
+      setLeaveBalance(balanceData);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const persist = useCallback(async (key: string, data: unknown) => {
-    await AsyncStorage.setItem(key, JSON.stringify(data));
-  }, []);
-
-  const addNotification = useCallback(async (notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => {
-    const newNotif: Notification = { ...notif, id: Crypto.randomUUID(), isRead: false, createdAt: new Date().toISOString() };
-    setNotifications(prev => {
-      const updated = [newNotif, ...prev];
-      persist(STORAGE_KEYS.notifications, updated);
-      return updated;
-    });
-  }, [persist]);
-
   const createLeave = useCallback(async (leave: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'approvalHistory'>) => {
-    const now = new Date().toISOString();
-    const newLeave: LeaveRequest = {
-      ...leave,
-      id: Crypto.randomUUID(),
-      status: 'Pending_Manager',
-      approvalHistory: [{ approverId: leave.employeeId, approverName: leave.employeeName, action: 'submit', comment: 'Submitted for approval', timestamp: now }],
-      createdAt: now,
-      updatedAt: now,
-    };
-    const updated = [newLeave, ...leaves];
-    setLeaves(updated);
-    await persist(STORAGE_KEYS.leaves, updated);
-
-    // Notify Manager
-    if (leave.managerId) {
-      await addNotification({
-        userId: leave.managerId,
-        title: 'New Approval Request',
-        body: `${leave.employeeName} submitted a ${leave.leaveType} leave request.`,
-        type: 'action_required',
-        entityType: 'leave',
-        entityId: newLeave.id,
-      });
-    }
-
+    const newLeave = await apiClient.createLeave({
+      leaveType: leave.leaveType,
+      startDate: leave.startDate,
+      endDate: leave.endDate,
+      reason: leave.reason,
+    });
+    // Refresh leaves list
+    const updatedLeaves = await apiClient.getLeaves().catch(() => leaves);
+    setLeaves(updatedLeaves);
     return newLeave;
-  }, [leaves, persist, addNotification]);
+  }, [leaves]);
 
   const updateLeaveStatus = useCallback(async (id: string, status: LeaveStatus, approverId: string, approverName: string, comment: string) => {
-    const now = new Date().toISOString();
-    const updated = leaves.map(l => {
-      if (l.id !== id) return l;
-      return {
-        ...l,
-        status,
-        updatedAt: now,
-        approvalHistory: [...l.approvalHistory, {
-          approverId, approverName,
-          action: status === 'Approved' ? 'approve' as const : status === 'Rejected' ? 'reject' as const : 'escalate' as const,
-          comment, timestamp: now,
-        }],
-      };
-    });
-    setLeaves(updated);
-    await persist(STORAGE_KEYS.leaves, updated);
-  }, [leaves, persist]);
+    const action = status === 'Approved' ? 'approve' : status === 'Rejected' ? 'reject' : 'escalate';
+    await apiClient.approveLeave(id, action, comment);
+    // Refresh leaves list
+    const updatedLeaves = await apiClient.getLeaves().catch(() => leaves);
+    setLeaves(updatedLeaves);
+  }, [leaves]);
 
   const createTicket = useCallback(async (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'comments' | 'slaDeadline'>) => {
-    const now = new Date().toISOString();
-    const slaHours = ticket.priority === 'Critical' ? 4 : ticket.priority === 'High' ? 24 : ticket.priority === 'Medium' ? 48 : 72;
-    const newTicket: Ticket = {
-      ...ticket,
-      id: Crypto.randomUUID(),
-      comments: [],
-      slaDeadline: new Date(Date.now() + slaHours * 3600000).toISOString(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    const updated = [newTicket, ...tickets];
-    setTickets(updated);
-    await persist(STORAGE_KEYS.tickets, updated);
+    const newTicket = await apiClient.createTicket({
+      title: ticket.title,
+      description: ticket.description,
+      category: ticket.category,
+      priority: ticket.priority,
+    });
+    const updatedTickets = await apiClient.getTickets().catch(() => tickets);
+    setTickets(updatedTickets);
     return newTicket;
-  }, [tickets, persist]);
+  }, [tickets]);
 
   const addTicketComment = useCallback(async (ticketId: string, comment: Omit<TicketComment, 'id' | 'createdAt'>) => {
-    const now = new Date().toISOString();
-    const updated = tickets.map(t => {
-      if (t.id !== ticketId) return t;
-      return {
-        ...t,
-        updatedAt: now,
-        comments: [...t.comments, { ...comment, id: Crypto.randomUUID(), createdAt: now }],
-      };
-    });
-    setTickets(updated);
-    await persist(STORAGE_KEYS.tickets, updated);
-  }, [tickets, persist]);
+    await apiClient.addTicketComment(ticketId, comment.content);
+    const updatedTickets = await apiClient.getTickets().catch(() => tickets);
+    setTickets(updatedTickets);
+  }, [tickets]);
 
   const updateTicketStatus = useCallback(async (id: string, status: TicketStatus) => {
-    const updated = tickets.map(t => t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t);
-    setTickets(updated);
-    await persist(STORAGE_KEYS.tickets, updated);
-  }, [tickets, persist]);
+    await apiClient.updateTicketStatus(id, status);
+    const updatedTickets = await apiClient.getTickets().catch(() => tickets);
+    setTickets(updatedTickets);
+  }, [tickets]);
 
   const createExpense = useCallback(async (expense: Omit<Expense, 'id' | 'createdAt' | 'updatedAt' | 'approvalHistory'>) => {
-    const now = new Date().toISOString();
-    const newExpense: Expense = {
-      ...expense,
-      id: Crypto.randomUUID(),
-      status: 'Pending_Manager',
-      approvalHistory: [{ approverId: expense.submittedBy, approverName: expense.submittedByName, action: 'submit', comment: 'Submitted', timestamp: now }],
-      createdAt: now,
-      updatedAt: now,
-    };
-    const updated = [newExpense, ...expenses];
-    setExpenses(updated);
-    await persist(STORAGE_KEYS.expenses, updated);
-
-    // Notify Manager
-    await addNotification({
-      userId: 'u2', // Sarah Chen (Manager)
-      title: 'New Approval Request',
-      body: `${expense.submittedByName} submitted an expense for approval.`,
-      type: 'action_required',
-      entityType: 'expense',
-      entityId: newExpense.id,
+    const newExpense = await apiClient.createExpense({
+      title: expense.title,
+      description: expense.description,
+      amount: expense.amount,
+      currency: expense.currency,
+      category: expense.category,
     });
-
+    const updatedExpenses = await apiClient.getExpenses().catch(() => expenses);
+    setExpenses(updatedExpenses);
     return newExpense;
-  }, [expenses, persist, addNotification]);
+  }, [expenses]);
 
   const updateExpenseStatus = useCallback(async (id: string, status: ExpenseStatus, approverId: string, approverName: string, comment: string) => {
-    const now = new Date().toISOString();
-    const updated = expenses.map(e => {
-      if (e.id !== id) return e;
-      return {
-        ...e,
-        status,
-        updatedAt: now,
-        approvalHistory: [...e.approvalHistory, {
-          approverId, approverName,
-          action: status === 'Approved' || status === 'Paid' ? 'approve' as const : 'reject' as const,
-          comment, timestamp: now,
-        }],
-      };
-    });
-    setExpenses(updated);
-    await persist(STORAGE_KEYS.expenses, updated);
-  }, [expenses, persist]);
+    const action = status === 'Approved' || status === 'Paid' ? 'approve' : 'reject';
+    await apiClient.approveExpense(id, action, comment);
+    const updatedExpenses = await apiClient.getExpenses().catch(() => expenses);
+    setExpenses(updatedExpenses);
+  }, [expenses]);
 
   const markNotificationRead = useCallback(async (id: string) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, isRead: true } : n);
-    setNotifications(updated);
-    await persist(STORAGE_KEYS.notifications, updated);
-  }, [notifications, persist]);
+    await apiClient.markNotificationRead(id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  }, []);
 
+  const addNotification = useCallback(async (_notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => {
+    // Notifications are created server-side. Just refresh.
+    const updatedNotifications = await apiClient.getNotifications().catch(() => notifications);
+    setNotifications(updatedNotifications);
+  }, [notifications]);
 
-  const userNotifications = useMemo(() => {
-    if (!user) return [];
-    return notifications.filter(n => n.userId === user.id);
-  }, [notifications, user]);
-
-  const unreadCount = useMemo(() => userNotifications.filter(n => !n.isRead).length, [userNotifications]);
+  const unreadCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
 
   const value = useMemo(() => ({
-    leaves, tickets, expenses,
-    notifications: userNotifications,
-    leaveBalance,
+    leaves, tickets, expenses, notifications, leaveBalance,
     createLeave, updateLeaveStatus,
     createTicket, addTicketComment, updateTicketStatus,
     createExpense, updateExpenseStatus,
     markNotificationRead, addNotification,
     unreadCount, refreshData: loadData, isLoading,
-  }), [leaves, tickets, expenses, userNotifications, leaveBalance, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
+  }), [leaves, tickets, expenses, notifications, leaveBalance, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
 
-  return <DataContext.Provider value={value as any}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
 export function useData() {

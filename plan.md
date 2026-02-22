@@ -1,0 +1,493 @@
+Project Title
+
+Unified Employee Service Platform (Mobile + Backend)
+
+---
+
+## 🎯 Project Objective
+
+Build a production-ready, enterprise-grade Unified Employee Service Mobile Application that consolidates HR, IT, Finance, and Administrative services into a single mobile app with secure backend integration.
+
+The system must be modular, scalable, secure, and role-based.
+
+This is NOT a UI prototype. Build full-stack.
+
+---
+
+# 🧱 SYSTEM REQUIREMENTS
+
+---
+
+## 1️⃣ Tech Stack Requirements
+
+Frontend:
+
+* React Native (TypeScript)
+* React Navigation
+* Redux Toolkit
+* Axios
+* SecureStore/Keychain
+* FCM for push notifications
+
+Backend:
+
+* Node.js (Express) or NestJS
+* PostgreSQL
+* Redis (caching + session handling)
+* JWT (OAuth2 compatible)
+* Role-Based Access Control middleware
+* REST API
+* Firebase Admin SDK (for push)
+* Multer (file uploads)
+* Winston (logging)
+
+Deployment:
+
+* Dockerized services
+* Environment-based configs
+* Production-ready structure
+
+---
+
+# 🔐 AUTHENTICATION & SECURITY
+
+---
+
+## Authentication Flow
+
+* OAuth 2.0 compatible
+* JWT access token (15 minutes expiry)
+* Refresh token (7 days expiry)
+* Refresh token rotation
+* Secure storage of tokens on device
+* Token blacklist on logout
+
+Support:
+
+* Email/password login
+* SSO-ready architecture
+* MFA support (OTP-based)
+
+---
+
+## Security Requirements
+
+* Password hashing using bcrypt
+* Rate limiting on auth endpoints
+* Role-based access control middleware
+* Encrypted file storage
+* HTTPS enforcement
+* Audit logs for sensitive actions
+* Prevent unauthorized route access
+* Device-based session tracking
+* Automatic logout after inactivity
+
+---
+
+# 👥 ROLE-BASED ACCESS CONTROL
+
+Define roles:
+
+* EMPLOYEE
+* MANAGER
+* HR_ADMIN
+* IT_ADMIN
+* FINANCE_ADMIN
+* SUPER_ADMIN
+
+Each API route must validate:
+
+* Authentication
+* Role authorization
+
+UI must dynamically render based on role.
+
+---
+
+# 🧩 MODULES TO IMPLEMENT
+
+---
+
+# 1️⃣ HR MODULE
+
+### Features:
+
+* View Payslips (PDF)
+* Apply Leave
+* View Leave Balance
+* Leave Approval Workflow
+* Policy Library
+* Benefits Overview
+
+---
+
+## Leave Workflow Engine
+
+State machine:
+
+Draft
+Submitted
+Pending_Manager
+Pending_HR
+Approved
+Rejected
+Escalated
+
+Each leave must store:
+
+* employeeId
+* managerId
+* leaveType
+* startDate
+* endDate
+* balanceSnapshot
+* status
+* approvalHistory[]
+* createdAt
+* updatedAt
+
+Approval history must log:
+
+* approverId
+* action
+* comment
+* timestamp
+
+Conflict-safe updates required.
+
+---
+
+# 2️⃣ IT MODULE
+
+### Features:
+
+* Create Ticket
+* Track Ticket
+* Add Comment
+* SLA Timer
+* Escalation on SLA breach
+* Password reset request
+
+Ticket States:
+
+Open
+Assigned
+In_Progress
+Resolved
+Closed
+Escalated
+
+Ticket must store:
+
+* priority
+* category
+* description
+* attachments
+* status
+* assignedTo
+* SLA deadline
+* history log
+
+---
+
+# 3️⃣ FINANCE MODULE
+
+### Features:
+
+* Submit Expense
+* Upload receipt
+* Approval workflow
+* Finance final approval
+* Reimbursement status
+
+Workflow:
+
+Draft
+Submitted
+Pending_Manager
+Pending_Finance
+Approved
+Rejected
+Paid
+
+---
+
+# 4️⃣ ADMIN MODULE
+
+* Facilities request
+* Asset request
+* Travel approval
+* Announcements
+* Employee directory
+
+Directory must support:
+
+* Search
+* Filter by department
+* Role-based visibility
+
+---
+
+# 🔔 NOTIFICATION SYSTEM
+
+Implement:
+
+* Push notifications (FCM)
+* In-app notifications
+* Notification categories:
+
+  * Action Required
+  * Status Update
+  * Announcement
+  * Escalation
+
+Each notification must contain:
+
+* entityType
+* entityId
+* route
+* isRead
+* createdAt
+
+Deep linking required.
+
+---
+
+# 🔍 GLOBAL SEARCH
+
+Backend-powered search across:
+
+* Users
+* Tickets
+* Leaves
+* Policies
+* Announcements
+
+Search must:
+
+* Respect role permissions
+* Use indexed queries
+* Return categorized results
+
+---
+
+# 📶 OFFLINE SUPPORT
+
+Implement:
+
+* Local cache for:
+
+  * Profile
+  * Leave balance
+  * Recent tickets
+  * Directory
+
+Offline submission queue:
+
+* Store pending actions locally
+* Auto sync when internet returns
+* Conflict resolution handling
+
+---
+
+# 🗄 DATABASE SCHEMA
+
+Create tables:
+
+Users
+Roles
+Permissions
+Departments
+Leaves
+LeaveApprovals
+Tickets
+TicketComments
+Expenses
+ExpenseApprovals
+Notifications
+Announcements
+AuditLogs
+Sessions
+
+Use proper foreign keys and indexing.
+
+Add audit trail for:
+
+* Approvals
+* Status changes
+* Role updates
+
+---
+
+# 📊 ANALYTICS
+
+Track:
+
+* Login events
+* Leave submission
+* Approval time
+* Ticket resolution time
+* SLA breaches
+* Feature usage
+
+Create analytics service layer.
+
+---
+
+# 🧠 SYSTEM ARCHITECTURE
+
+Use modular service structure:
+
+/auth
+/hr
+/it
+/finance
+/admin
+/notifications
+/search
+/analytics
+
+Each module isolated.
+
+Implement middleware:
+
+* Auth middleware
+* Role guard middleware
+* Error handler
+* Logger
+* Request validator
+
+---
+
+# 🎨 FRONTEND REQUIREMENTS
+
+Implement:
+
+* Bottom tab navigation
+* Dynamic dashboard based on role
+* Quick action FAB
+* Pull to refresh
+* Loading skeletons
+* Error states
+* Dark mode
+* Accessibility support
+
+All API calls must:
+
+* Handle loading state
+* Handle error state
+* Retry logic
+* Token auto refresh
+
+---
+
+# ⚙️ API CONTRACT REQUIREMENTS
+
+Use RESTful naming:
+
+POST /auth/login
+POST /auth/refresh
+GET /users/me
+
+POST /leaves
+GET /leaves
+PATCH /leaves/:id/approve
+
+POST /tickets
+GET /tickets
+POST /tickets/:id/comments
+
+POST /expenses
+PATCH /expenses/:id/approve
+
+GET /notifications
+PATCH /notifications/:id/read
+
+Implement validation using Joi or Zod.
+
+---
+
+# 📁 PROJECT STRUCTURE
+
+Frontend:
+
+```
+/src
+  /components
+  /screens
+  /navigation
+  /store
+  /services
+  /utils
+  /hooks
+```
+
+Backend:
+
+```
+/src
+  /modules
+  /middlewares
+  /models
+  /controllers
+  /services
+  /routes
+  /config
+```
+
+---
+
+# 🚀 NON-FUNCTIONAL REQUIREMENTS
+
+* Must support 10,000+ concurrent users
+* API response under 500ms (normal load)
+* Pagination for all list endpoints
+* Proper indexing on DB
+* Secure file upload handling
+* Horizontal scalability ready
+* Structured logging
+* Production environment config
+
+---
+
+# 📦 DELIVERABLES REQUIRED
+
+Generate:
+
+1. Complete backend code
+2. Complete React Native frontend
+3. Database schema migration files
+4. Docker setup
+5. Environment configuration example
+6. README with setup instructions
+7. Seed script with demo users for each role
+
+---
+
+# 🎯 FINAL OUTPUT EXPECTATION
+
+The generated project must:
+
+* Be runnable locally
+* Have working authentication
+* Have role-based UI rendering
+* Have functioning leave and ticket workflows
+* Have push notification integration
+* Be production structured
+
+Do not generate mock-only placeholders.
+Implement actual backend logic and database persistence.
+
+---
+
+# END OF PROMPT
+
+---
+
+If you want, I can now:
+
+* Create a lighter MVP prompt
+* Create a pitch/demo version prompt
+* Or create a prompt optimized specifically for mobile-only prototype
+
+Tell me your goal: full production build, college project, or startup MVP?
