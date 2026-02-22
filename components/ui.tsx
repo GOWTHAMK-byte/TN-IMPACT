@@ -1,22 +1,31 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp, FadeInRight, ZoomIn } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
+
 type StatusType = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
 const statusColors: Record<StatusType, { bg: string; text: string }> = {
-  success: { bg: Colors.successLight, text: '#047857' },
-  warning: { bg: Colors.warningLight, text: '#92400E' },
-  error: { bg: Colors.errorLight, text: '#991B1B' },
-  info: { bg: Colors.accentLight, text: '#0369A1' },
-  neutral: { bg: '#F1F5F9', text: '#475569' },
+  success: { bg: 'rgba(52, 211, 153, 0.15)', text: '#34D399' },
+  warning: { bg: 'rgba(251, 191, 36, 0.15)', text: '#FBBF24' },
+  error: { bg: 'rgba(251, 113, 133, 0.15)', text: '#FB7185' },
+  info: { bg: 'rgba(56, 189, 248, 0.15)', text: '#38BDF8' },
+  neutral: { bg: 'rgba(255, 255, 255, 0.05)', text: '#94A3B8' },
 };
+
+const P = Pressable as any;
 
 export function StatusBadge({ label, type = 'neutral' }: { label: string; type?: StatusType }) {
   const colors = statusColors[type];
   return (
-    <View style={[styles.badge, { backgroundColor: colors.bg }]}>
+    <Animated.View
+      entering={FadeInRight.delay(200).duration(400)}
+      style={[styles.badge, { backgroundColor: colors.bg }]}
+    >
+      <View style={[styles.badgeDot, { backgroundColor: colors.text }]} />
       <Text style={[styles.badgeText, { color: colors.text }]}>{label}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -32,18 +41,32 @@ export function formatStatus(status: string): string {
   return status.replace(/_/g, ' ');
 }
 
-export function Card({ children, style, onPress }: { children: React.ReactNode; style?: object; onPress?: () => void }) {
-  if (onPress) {
-    return (
-      <Pressable
+export function Card({ children, style, onPress, delay = 0 }: { children: React.ReactNode; style?: any; onPress?: () => void; delay?: number }) {
+  const Wrapper = (onPress ? P : View) as any;
+  const animatedProps = delay > 0 ? { entering: FadeInUp.delay(delay).duration(500) } : {};
+
+  return (
+    <Animated.View
+      {...animatedProps}
+      style={[styles.cardContainer, style]}
+    >
+      <Wrapper
         onPress={onPress}
-        style={({ pressed }) => [styles.card, style, pressed && { opacity: 0.95, transform: [{ scale: 0.99 }] }]}
+        style={({ pressed }: any) => [
+          styles.card,
+          onPress && pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
+        ]}
       >
+        <LinearGradient
+          colors={Colors.gradients.glass as [string, string, ...string[]]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
         {children}
-      </Pressable>
-    );
-  }
-  return <View style={[styles.card, style]}>{children}</View>;
+      </Wrapper>
+    </Animated.View>
+  );
 }
 
 export function EmptyState({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
@@ -71,9 +94,9 @@ export function SectionHeader({ title, actionLabel, onAction }: { title: string;
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {actionLabel && onAction && (
-        <Pressable onPress={onAction} hitSlop={8}>
+        <P onPress={onAction} hitSlop={8} style={({ pressed }: any) => [pressed && { opacity: 0.7 }]}>
           <Text style={styles.sectionAction}>{actionLabel}</Text>
-        </Pressable>
+        </P>
       )}
     </View>
   );
@@ -97,12 +120,39 @@ export function PriorityIndicator({ priority }: { priority: string }) {
 
 export function FAB({ onPress, icon = 'plus' }: { onPress: () => void; icon?: string }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.fab, pressed && { transform: [{ scale: 0.92 }] }]}
-    >
-      <Feather name={icon as any} size={24} color="#fff" />
-    </Pressable>
+    <Animated.View entering={ZoomIn.delay(600)} style={styles.fabContainer}>
+      <P
+        onPress={onPress}
+        style={({ pressed }: any) => [styles.fab, pressed && { transform: [{ scale: 0.9 }] }]}
+      >
+        <LinearGradient
+          colors={Colors.gradients.accent as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabGradient}
+        >
+          <Feather name={icon as any} size={24} color="#fff" />
+        </LinearGradient>
+      </P>
+    </Animated.View>
+  );
+}
+
+export function GradientButton({ title, onPress, colors, icon, style }: { title: string; onPress: () => void; colors?: string[]; icon?: string; style?: any }) {
+  return (
+    <View style={[styles.gradientBtn, style]}>
+      <P onPress={onPress} style={({ pressed }: any) => [pressed && { opacity: 0.85 }]}>
+        <LinearGradient
+          colors={(colors || Colors.gradients.accent) as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientBtnInner}
+        >
+          {icon && <Feather name={icon as any} size={18} color="#fff" style={{ marginRight: 8 }} />}
+          <Text style={styles.gradientBtnText}>{title}</Text>
+        </LinearGradient>
+      </P>
+    </View>
   );
 }
 
@@ -124,18 +174,33 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  cardContainer: {
+    marginBottom: 12,
   },
   card: {
     backgroundColor: Colors.card,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
+    overflow: 'hidden',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -147,7 +212,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.background,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -174,21 +239,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    marginTop: 8,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.text,
+    letterSpacing: -0.5,
   },
   sectionAction: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.accent,
   },
   avatar: {
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   avatarText: {
     color: '#fff',
@@ -199,42 +268,66 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     right: 20,
-    bottom: Platform.OS === 'web' ? 100 : 90,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.accent,
+    bottom: Platform.OS === 'web' ? 40 : 20,
+    zIndex: 100,
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+  },
+  gradientBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  gradientBtnInner: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradientBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
   },
   infoRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   infoLabel: {
     fontSize: 14,
     color: Colors.textSecondary,
+    fontWeight: '500',
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.text,
   },
 });

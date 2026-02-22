@@ -6,10 +6,13 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData, LeaveRequest } from '@/contexts/DataContext';
-import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB, SectionHeader } from '@/components/ui';
+import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB } from '@/components/ui';
 import { useState, useCallback, useMemo } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type FilterType = 'All' | 'Pending' | 'Approved' | 'Rejected';
+
+const P = Pressable as any;
 
 export default function HRScreen() {
   const insets = useSafeAreaInsets();
@@ -19,7 +22,6 @@ export default function HRScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-
   const isApprover = user?.role === 'MANAGER' || user?.role === 'HR_ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const filteredLeaves = useMemo(() => {
@@ -54,8 +56,8 @@ export default function HRScreen() {
     <Card style={styles.leaveCard}>
       <View style={styles.leaveHeader}>
         <View style={styles.leaveTypeWrap}>
-          <Feather name="calendar" size={14} color={Colors.secondary} />
-          <Text style={styles.leaveType}>{item.leaveType} Leave</Text>
+          <Feather name="calendar" size={14} color={Colors.accent} />
+          <Text style={styles.leaveType}>{item.leaveType}</Text>
         </View>
         <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
       </View>
@@ -67,41 +69,49 @@ export default function HRScreen() {
       {item.reason ? <Text style={styles.leaveReason} numberOfLines={2}>{item.reason}</Text> : null}
       {isApprover && item.status.startsWith('Pending') && (
         <View style={styles.actionRow}>
-          <Pressable onPress={() => handleApprove(item)} style={({ pressed }) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
+          <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
             <Feather name="check" size={16} color="#fff" />
             <Text style={styles.approveBtnText}>Approve</Text>
-          </Pressable>
-          <Pressable onPress={() => handleReject(item)} style={({ pressed }) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
-            <Feather name="x" size={16} color={Colors.error} />
+          </P>
+          <P onPress={() => handleReject(item)} style={({ pressed }: any) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
             <Text style={styles.rejectBtnText}>Reject</Text>
-          </Pressable>
+          </P>
         </View>
       )}
     </Card>
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
-      <View style={styles.headerArea}>
-        <Text style={styles.pageTitle}>Leave Management</Text>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={Colors.gradients.background as [string, string, ...string[]]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[styles.headerArea, { paddingTop: insets.top + webTopInset + 12 }]}>
+        <Text style={styles.pageTitle}>Leaves</Text>
         <View style={styles.balanceStrip}>
-          <View style={styles.balItem}><Text style={[styles.balVal, { color: Colors.accent }]}>{leaveBalance.annual}</Text><Text style={styles.balLabel}>Annual</Text></View>
-          <View style={styles.balDivider} />
-          <View style={styles.balItem}><Text style={[styles.balVal, { color: Colors.warning }]}>{leaveBalance.sick}</Text><Text style={styles.balLabel}>Sick</Text></View>
-          <View style={styles.balDivider} />
-          <View style={styles.balItem}><Text style={[styles.balVal, { color: Colors.secondary }]}>{leaveBalance.personal}</Text><Text style={styles.balLabel}>Personal</Text></View>
+          {[
+            { label: 'Annual', val: leaveBalance.annual, color: Colors.accent },
+            { label: 'Sick', val: leaveBalance.sick, color: Colors.success },
+            { label: 'Personal', val: leaveBalance.personal, color: Colors.secondary },
+          ].map((b, i) => (
+            <View key={b.label} style={styles.balItem}>
+              <Text style={[styles.balVal, { color: b.color }]}>{b.val}</Text>
+              <Text style={styles.balLabel}>{b.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
       <View style={styles.filterRow}>
         {FILTERS.map(f => (
-          <Pressable
+          <P
             key={f}
             onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
             style={[styles.filterChip, filter === f && styles.filterChipActive]}
           >
             <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
-          </Pressable>
+          </P>
         ))}
       </View>
 
@@ -112,7 +122,7 @@ export default function HRScreen() {
         contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 118 : 100 }]}
         scrollEnabled={!!filteredLeaves.length}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
         ListEmptyComponent={<EmptyState icon="calendar" title="No leave requests" subtitle="Tap + to submit a new leave request" />}
       />
 
@@ -123,30 +133,29 @@ export default function HRScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerArea: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: Colors.text, fontFamily: 'Inter_700Bold' },
-  balanceStrip: { flexDirection: 'row', backgroundColor: Colors.card, borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  headerArea: { paddingHorizontal: 20, paddingBottom: 8 },
+  pageTitle: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1, marginBottom: 12 },
+  balanceStrip: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', gap: 12 },
   balItem: { flex: 1, alignItems: 'center' },
-  balVal: { fontSize: 22, fontWeight: '800', fontFamily: 'Inter_700Bold' },
-  balLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
-  balDivider: { width: 1, backgroundColor: Colors.divider },
+  balVal: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  balLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2, fontWeight: '700', textTransform: 'uppercase' },
   filterRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginVertical: 12 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   filterChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  filterText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  filterTextActive: { color: '#fff' },
-  list: { paddingHorizontal: 20, gap: 10 },
+  filterText: { fontSize: 13, fontWeight: '700', color: Colors.textTertiary },
+  filterTextActive: { color: Colors.background },
+  list: { paddingHorizontal: 20, gap: 12 },
   leaveCard: { gap: 8 },
   leaveHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   leaveTypeWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  leaveType: { fontSize: 13, fontWeight: '600', color: Colors.secondary },
-  leaveName: { fontSize: 15, fontWeight: '600', color: Colors.text, fontFamily: 'Inter_600SemiBold' },
+  leaveType: { fontSize: 13, fontWeight: '800', color: Colors.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
+  leaveName: { fontSize: 16, fontWeight: '700', color: Colors.text },
   leaveDates: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  leaveDateText: { fontSize: 13, color: Colors.textSecondary },
+  leaveDateText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   leaveReason: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  approveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.success, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  approveBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  rejectBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.errorLight, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  rejectBtnText: { fontSize: 13, fontWeight: '600', color: Colors.error },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.success, paddingVertical: 12, borderRadius: 12 },
+  approveBtnText: { fontSize: 14, fontWeight: '800', color: Colors.background, textTransform: 'uppercase' },
+  rejectBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(251, 113, 133, 0.1)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(251, 113, 133, 0.2)' },
+  rejectBtnText: { fontSize: 14, fontWeight: '800', color: Colors.error, textTransform: 'uppercase' },
 });

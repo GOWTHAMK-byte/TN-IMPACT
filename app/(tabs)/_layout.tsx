@@ -39,9 +39,9 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const isWeb = Platform.OS === 'web';
   const isIOS = Platform.OS === 'ios';
+  const isAndroid = Platform.OS === 'android';
   const safeAreaInsets = useSafeAreaInsets();
   const { unreadCount } = useData();
 
@@ -51,58 +51,60 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.tabInactive,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: isWeb ? 10 : 0 },
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : isDark ? '#000' : '#fff',
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: isDark ? '#333' : '#E2E8F0',
+          backgroundColor: isIOS ? 'transparent' : Colors.background,
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255, 255, 255, 0.05)',
+          height: isWeb ? 84 : 64 + safeAreaInsets.bottom,
+          paddingTop: 8,
+          paddingBottom: isWeb ? 0 : safeAreaInsets.bottom + (isAndroid ? 4 : 0),
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
-          paddingBottom: isWeb ? 0 : safeAreaInsets.bottom,
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? '#000' : '#fff' }]} />
-          ) : null,
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]} />
+          ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="hr"
         options={{
           title: 'HR',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="tickets"
         options={{
           title: 'IT',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'construct' : 'construct-outline'} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'construct' : 'construct-outline'} size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="expenses"
         options={{
           title: 'Finance',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color} />,
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
-          tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal-circle-outline'} size={22} color={color} />,
+          title: 'Menu',
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'menu' : 'menu-outline'} size={22} color={color} />,
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: Colors.error, fontSize: 10, fontWeight: '900' },
         }}
       />
     </Tabs>
