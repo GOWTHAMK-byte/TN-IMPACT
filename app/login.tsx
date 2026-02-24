@@ -47,9 +47,7 @@ export default function LoginScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
-  }
+  // Authentication routing is now handled globally in app/_layout.tsx
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);

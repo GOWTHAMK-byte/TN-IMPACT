@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack, Redirect } from "expo-router";
+import { Stack, Redirect, useSegments, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
@@ -22,7 +22,23 @@ import Colors from "@/components/constants/colors";
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === 'login';
+
+    if (!user && !inAuthGroup) {
+      // Redirect to login if unauthenticated and not already there
+      router.replace('/login');
+    } else if (user && inAuthGroup) {
+      // Redirect to main app if authenticated and trying to access login
+      router.replace('/(tabs)');
+    }
+  }, [user, isLoading, segments]);
 
   if (isLoading) {
     return (

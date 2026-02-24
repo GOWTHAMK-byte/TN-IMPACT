@@ -53,9 +53,7 @@ export default function DashboardScreen() {
 
   const isManagement = ['MANAGER', 'HR_ADMIN', 'IT_ADMIN', 'FINANCE_ADMIN', 'SUPER_ADMIN'].includes(user?.role || '');
 
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
+  // Authentication is now globally protected by _layout.tsx
 
   const greeting = () => {
     const hour = new Date().getHours();
