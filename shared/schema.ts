@@ -100,7 +100,7 @@ export const users = pgTable("users", {
     .default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("EMPLOYEE"),
   department: text("department").notNull().default("General"),
@@ -108,6 +108,8 @@ export const users = pgTable("users", {
   phone: text("phone").default(""),
   avatar: text("avatar").default(""),
   managerId: varchar("manager_id").references((): any => users.id),
+  ssoProvider: text("sso_provider"),
+  ssoProviderId: text("sso_provider_id"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -279,6 +281,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+export const registerSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  role: z.enum(["EMPLOYEE", "MANAGER", "HR_ADMIN", "IT_ADMIN", "FINANCE_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
 });
 
 export const createLeaveSchema = z.object({

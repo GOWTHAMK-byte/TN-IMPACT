@@ -19,6 +19,22 @@ export async function getUserByEmail(email: string) {
   return user || null;
 }
 
+export async function getUserBySsoId(provider: string, providerId: string) {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.ssoProvider, provider), eq(users.ssoProviderId, providerId)))
+    .limit(1);
+  return user || null;
+}
+
+export async function linkSsoToUser(userId: string, provider: string, providerId: string) {
+  await db
+    .update(users)
+    .set({ ssoProvider: provider, ssoProviderId: providerId, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
 export async function getUsers(filters?: { department?: string; role?: UserRole; search?: string }) {
   let query = db.select().from(users).where(eq(users.isActive, true));
 
@@ -46,7 +62,7 @@ export async function getUsers(filters?: { department?: string; role?: UserRole;
 export async function createUser(data: {
   username: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   name: string;
   role: UserRole;
   department: string;
@@ -54,6 +70,8 @@ export async function createUser(data: {
   phone?: string;
   avatar?: string;
   managerId?: string;
+  ssoProvider?: string;
+  ssoProviderId?: string;
 }) {
   const [user] = await db.insert(users).values(data).returning();
   return user;

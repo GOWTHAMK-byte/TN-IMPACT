@@ -1,21 +1,34 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 const TOKEN_KEY = "servicehub_access_token";
 const REFRESH_TOKEN_KEY = "servicehub_refresh_token";
 
 // Determine backend URL based on platform
-function getBaseUrl(): string {
-    // In development, the Express server runs on port 5000
+export function getBaseUrl(): string {
+    const BACKEND_PORT = "5000";
+
+    // Web: localhost works fine
     if (Platform.OS === "web") {
-        return "http://localhost:5000";
+        return `http://localhost:${BACKEND_PORT}`;
     }
-    // For native (Android emulator connects to host via 10.0.2.2)
+
+    // Native (physical device or emulator):
+    // Expo exposes the dev machine's LAN IP via hostUri (e.g. "192.168.1.5:8081")
+    const hostUri = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+    if (hostUri) {
+        const host = hostUri.split(":")[0]; // extract just the IP
+        return `http://${host}:${BACKEND_PORT}`;
+    }
+
+    // Fallback for Android emulator
     if (Platform.OS === "android") {
-        return "http://10.0.2.2:5000";
+        return `http://10.0.2.2:${BACKEND_PORT}`;
     }
-    // For iOS simulator
-    return "http://localhost:5000";
+
+    // Fallback for iOS simulator
+    return `http://localhost:${BACKEND_PORT}`;
 }
 
 const BASE_URL = getBaseUrl();
@@ -113,6 +126,10 @@ export async function api<T = any>(endpoint: string, options: ApiOptions = {}): 
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Request failed" }));
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+            const details = errorData.errors.map((e: any) => `${e.field}: ${e.message}`).join(", ");
+            throw new Error(`${errorData.message}: ${details}`);
+        }
         throw new Error(errorData.message || `HTTP ${response.status}`);
     }
 
@@ -199,4 +216,12 @@ export const apiClient = {
     // Search
     search: (query: string) =>
         api(`/api/search?q=${encodeURIComponent(query)}`),
+
+    // Google SSO
+    googleLogin: (idToken: string) =>
+        api("/api/auth/google", { method: "POST", body: { idToken }, skipAuth: true }),
+
+    // Register
+    register: (name: string, email: string, password: string, role: string) =>
+        api("/api/auth/register", { method: "POST", body: { name, email, password, role }, skipAuth: true }),
 };

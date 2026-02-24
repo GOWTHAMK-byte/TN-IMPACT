@@ -1,5 +1,20 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import { apiClient, setAccessToken, setRefreshToken, clearTokens, getAccessToken } from '@/lib/api';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
+
+// Complete auth session for web
+WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth config — replace with your actual Client ID
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
+
+const discovery = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+};
 
 export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'IT_ADMIN' | 'FINANCE_ADMIN' | 'SUPER_ADMIN';
 
@@ -18,7 +33,9 @@ export interface User {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, role: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -45,6 +62,20 @@ export const ALL_USERS: User[] = [
   { id: 'u5', name: 'David Kim', email: 'david.kim@company.com', role: 'FINANCE_ADMIN', department: 'Finance', avatar: 'DK', title: 'Finance Manager', phone: '+1 (555) 567-8901' },
   { id: 'u6', name: 'Emma Wilson', email: 'emma.wilson@company.com', role: 'SUPER_ADMIN', department: 'Executive', avatar: 'EW', title: 'Chief Operations Officer', phone: '+1 (555) 678-9012' },
 ];
+
+function mapResponseToUser(response: any): User {
+  return {
+    id: response.user.id,
+    name: response.user.name,
+    email: response.user.email,
+    role: response.user.role,
+    department: response.user.department,
+    avatar: response.user.avatar || response.user.name.substring(0, 2).toUpperCase(),
+    title: response.user.title || '',
+    phone: response.user.phone || '',
+    managerId: response.user.managerId,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -78,30 +109,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (_email: string, role: UserRole) => {
-    // Use role to determine which demo account to log in as
-    const email = ROLE_EMAILS[role];
-    const password = DEMO_PASSWORD;
-
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await apiClient.login(email, password);
-
       await setAccessToken(response.accessToken);
       await setRefreshToken(response.refreshToken);
-
-      setUser({
-        id: response.user.id,
-        name: response.user.name,
-        email: response.user.email,
-        role: response.user.role,
-        department: response.user.department,
-        avatar: response.user.avatar || response.user.name.substring(0, 2).toUpperCase(),
-        title: response.user.title || '',
-        phone: response.user.phone || '',
-        managerId: response.user.managerId,
-      });
+      setUser(mapResponseToUser(response));
     } catch (err) {
       console.error('Login failed:', err);
+      throw err;
+    }
+  }, []);
+
+  const register = useCallback(async (name: string, email: string, password: string, role: UserRole) => {
+    try {
+      const response = await apiClient.register(name, email, password, role);
+      await setAccessToken(response.accessToken);
+      await setRefreshToken(response.refreshToken);
+      setUser(mapResponseToUser(response));
+    } catch (err) {
+      console.error('Register failed:', err);
+      throw err;
+    }
+  }, []);
+
+  const loginWithGoogle = useCallback(async () => {
+    try {
+      if (Platform.OS === 'web') {
+        // Web: Use implicit flow (AuthRequest → id_token → backend POST)
+        const redirectUri = AuthSession.makeRedirectUri({ scheme: 'servicehub' });
+        console.log('🔗 Google OAuth redirect URI (web):', redirectUri);
+
+        const request = new AuthSession.AuthRequest({
+          clientId: GOOGLE_CLIENT_ID,
+          scopes: ['openid', 'profile', 'email'],
+          redirectUri,
+          responseType: AuthSession.ResponseType.IdToken,
+          usePKCE: false,
+          prompt: AuthSession.Prompt.SelectAccount, // Force account selection
+          extraParams: {
+            nonce: Math.random().toString(36).substring(2),
+          },
+        });
+
+        const result = await request.promptAsync(discovery);
+
+        if (result.type === 'success' && result.params?.id_token) {
+          const idToken = result.params.id_token;
+          const response = await apiClient.googleLogin(idToken);
+          await setAccessToken(response.accessToken);
+          await setRefreshToken(response.refreshToken);
+          setUser(mapResponseToUser(response));
+        } else if (result.type === 'error') {
+          throw new Error(result.error?.message || 'Google Sign-In failed');
+        }
+      } else {
+        // Mobile: Use backend callback flow via tunnel
+        // Expo Go only handles exp:// URLs, not custom schemes like servicehub://
+        const callbackUrl = 'https://de18-2401-4900-889f-4238-835-50ec-5025-c383.ngrok-free.app/api/auth/google/callback';
+
+        // Get the Expo Go return URL (e.g. exp://192.168.1.9:8081)
+        const returnUrl = AuthSession.makeRedirectUri({ scheme: 'servicehub' });
+        console.log('🔗 Return URL for Expo Go:', returnUrl);
+
+        // Build Google OAuth URL — pass returnUrl via state param so backend knows where to redirect
+        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${GOOGLE_CLIENT_ID}` +
+          `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
+          `&response_type=code` +
+          `&scope=${encodeURIComponent('openid profile email')}` +
+          `&state=${encodeURIComponent(returnUrl)}` +
+          `&prompt=select_account` + // Force account selection
+          `&access_type=offline`;
+
+        console.log('🔗 Callback URL:', callbackUrl);
+
+        const result = await WebBrowser.openAuthSessionAsync(
+          googleAuthUrl,
+          returnUrl  // Expo Go listens for exp:// URLs
+        );
+
+        if (result.type === 'success' && result.url) {
+          // Parse tokens from the deep link URL
+          const url = new URL(result.url);
+          const accessToken = url.searchParams.get('accessToken');
+          const refreshToken = url.searchParams.get('refreshToken');
+          const userData = url.searchParams.get('user');
+
+          if (accessToken && refreshToken && userData) {
+            await setAccessToken(accessToken);
+            await setRefreshToken(refreshToken);
+            const parsedUser = JSON.parse(decodeURIComponent(userData));
+            setUser({
+              id: parsedUser.id,
+              name: parsedUser.name,
+              email: parsedUser.email,
+              role: parsedUser.role,
+              department: parsedUser.department,
+              avatar: parsedUser.avatar || parsedUser.name.substring(0, 2).toUpperCase(),
+              title: parsedUser.title || '',
+              phone: parsedUser.phone || '',
+              managerId: parsedUser.managerId,
+            });
+          } else {
+            throw new Error('Missing tokens in callback response');
+          }
+        }
+        // type === 'cancel'/'dismiss' means user cancelled — do nothing
+      }
+    } catch (err) {
+      console.error('Google Sign-In failed:', err);
       throw err;
     }
   }, []);
@@ -120,9 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     login,
+    register,
+    loginWithGoogle,
     logout,
     isAuthenticated: !!user,
-  }), [user, isLoading, login, logout]);
+  }), [user, isLoading, login, register, loginWithGoogle, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
