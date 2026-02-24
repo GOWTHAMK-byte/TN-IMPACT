@@ -35,17 +35,31 @@ export async function linkSsoToUser(userId: string, provider: string, providerId
     .where(eq(users.id, userId));
 }
 
+export async function saveUserOtp(userId: string, otpCode: string, expiresAt: Date) {
+  await db
+    .update(users)
+    .set({ otpCode, otpExpiresAt: expiresAt, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+export async function clearUserOtp(userId: string) {
+  await db
+    .update(users)
+    .set({ otpCode: null, otpExpiresAt: null, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
 export async function getUsers(filters?: { department?: string; role?: UserRole; search?: string }) {
-  let query = db.select().from(users).where(eq(users.isActive, true));
+  const conditions = [eq(users.isActive, true)];
 
   if (filters?.department) {
-    query = query.where(eq(users.department, filters.department)) as any;
+    conditions.push(eq(users.department, filters.department));
   }
   if (filters?.role) {
-    query = query.where(eq(users.role, filters.role)) as any;
+    conditions.push(eq(users.role, filters.role));
   }
 
-  const results = await query.orderBy(users.name);
+  const results = await db.select().from(users).where(and(...conditions)).orderBy(users.name);
 
   if (filters?.search) {
     const s = filters.search.toLowerCase();

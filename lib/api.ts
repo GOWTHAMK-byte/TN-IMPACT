@@ -95,6 +95,7 @@ export async function api<T = any>(endpoint: string, options: ApiOptions = {}): 
 
     const requestHeaders: Record<string, string> = {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "69420",
         ...headers,
     };
 
@@ -224,4 +225,8 @@ export const apiClient = {
     // Register
     register: (name: string, email: string, password: string, role: string) =>
         api("/api/auth/register", { method: "POST", body: { name, email, password, role }, skipAuth: true }),
+
+    // MFA
+    loginWithMfa: (mfaToken: string, code: string) =>
+        api("/api/auth/login/mfa", { method: "POST", body: { mfaToken, code }, skipAuth: true }),
 };

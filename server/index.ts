@@ -46,7 +46,7 @@ function setupCors(app: express.Application) {
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
@@ -248,8 +248,39 @@ function setupErrorHandler(app: express.Application) {
       port,
       host: "0.0.0.0",
     },
-    () => {
+    async () => {
       log(`express server serving on port ${port}`);
+
+      // Auto-start ngrok tunnel if authtoken is provided
+      const ngrokAuthtoken = process.env.NGROK_AUTHTOKEN;
+      if (ngrokAuthtoken) {
+        try {
+          const ngrok = await import("@ngrok/ngrok");
+          const listener = await ngrok.connect({
+            addr: port,
+            authtoken: ngrokAuthtoken,
+          });
+
+          const tunnelUrl = listener.url();
+
+          log(`\n\n╔════════════════════════════════════════════╗`);
+          log(`║         🚀 NGROK TUNNEL ACTIVE              ║`);
+          log(`╠════════════════════════════════════════════╣`);
+          log(`║  URL: ${tunnelUrl}`);
+          log(`║  Callback: ${tunnelUrl}/api/auth/google/callback`);
+          log(`╠════════════════════════════════════════════╣`);
+          log(`║  ⚠️  Update .env: EXPO_PUBLIC_API_URL       ║`);
+          log(`║  ⚠️  Update Google Cloud Console redirect   ║`);
+          log(`╚════════════════════════════════════════════╝\n`);
+
+          // Write the URL to a file for easy access
+          fs.writeFileSync(path.resolve(process.cwd(), "ngrok-url.txt"), tunnelUrl || "");
+        } catch (err) {
+          log("⚠️  ngrok failed to start:", err);
+        }
+      } else {
+        log("ℹ️  NGROK_AUTHTOKEN not set — skipping tunnel. Set it in .env to auto-start ngrok.");
+      }
     },
   );
 })();

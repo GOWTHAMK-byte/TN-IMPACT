@@ -5,8 +5,9 @@ import { OAuth2Client } from "google-auth-library";
 import { config } from "../config";
 import { authenticateToken } from "../middleware/auth";
 import { validate } from "../middleware/validate";
-import { loginSchema, registerSchema } from "@shared/schema";
+import { loginSchema, registerSchema, mfaLoginSchema } from "@shared/schema";
 import * as storage from "../storage";
+import { sendOtpEmail } from "../email";
 
 const router = Router();
 const googleClient = new OAuth2Client(config.googleClientId, config.googleClientSecret);
@@ -34,6 +35,24 @@ router.post("/login", validate(loginSchema), async (req, res) => {
         if (!user.isActive) {
             return res.status(403).json({ message: "Account is deactivated" });
         }
+
+        // Always require Mobile OTP MFA for email/password login
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+        await storage.saveUserOtp(user.id, otpCode, otpExpiresAt);
+
+        // Dispatch OTP via Email using Nodemailer
+        await sendOtpEmail(user.email, otpCode);
+
+        const mfaToken = jwt.sign({ id: user.id }, config.jwtSecret, {
+            expiresIn: "5m",
+        } as jwt.SignOptions);
+
+        return res.json({
+            mfaRequired: true,
+            mfaToken,
+        });
 
         const tokenPayload = {
             id: user.id,
@@ -65,7 +84,7 @@ router.post("/login", validate(loginSchema), async (req, res) => {
         });
 
         // Return user info (without passwordHash)
-        const { passwordHash, ...safeUser } = user;
+        const { passwordHash: _, otpCode: __, otpExpiresAt: ___, ...safeUser } = user;
 
         res.json({
             user: safeUser,
@@ -455,4 +474,63 @@ router.get("/me", authenticateToken, async (req, res) => {
 });
 
 export default router;
+
+// POST /api/auth/login/mfa
+router.post("/login/mfa", validate(mfaLoginSchema), async (req, res) => {
+    try {
+        const { mfaToken, code } = req.body;
+
+        // Verify the short-lived MFA token
+        const decoded = jwt.verify(mfaToken, config.jwtSecret) as { id: string };
+        const user = await storage.getUserById(decoded.id);
+
+        if (!user || !user.otpCode || !user.otpExpiresAt) {
+            return res.status(401).json({ message: "Invalid or expired MFA request" });
+        }
+
+        if (user.otpCode !== code || user.otpExpiresAt < new Date()) {
+            return res.status(401).json({ message: "Invalid or expired OTP code" });
+        }
+
+        // Clear OTP after successful verification
+        await storage.clearUserOtp(user.id);
+
+        // Issue regular session tokens
+        const tokenPayload = {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            name: user.name,
+        };
+
+        const accessToken = jwt.sign(tokenPayload, config.jwtSecret, { expiresIn: config.jwtExpiresIn } as jwt.SignOptions);
+        const refreshToken = jwt.sign({ id: user.id }, config.jwtRefreshSecret, { expiresIn: config.jwtRefreshExpiresIn } as jwt.SignOptions);
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await storage.saveRefreshToken(user.id, refreshToken, expiresAt);
+
+        // Audit log
+        await storage.createAuditLog({
+            userId: user.id,
+            action: "login",
+            entityType: "auth",
+            details: "User logged in via MFA",
+        });
+
+        const { passwordHash: _, otpCode: __, otpExpiresAt: ___, ...safeUser } = user;
+
+        res.json({
+            user: safeUser,
+            accessToken,
+            refreshToken,
+        });
+    } catch (err: any) {
+        if (err.name === "TokenExpiredError" || err.name === "JsonWebTokenError") {
+            return res.status(401).json({ message: "MFA session expired, please login again" });
+        }
+        console.error("MFA Login error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+
 

@@ -33,8 +33,11 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, register, loginWithGoogle, isAuthenticated } = useAuth();
+  const { login, register, loginWithGoogle, isAuthenticated, loginWithMfa } = useAuth();
   const [mode, setMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [mfaPending, setMfaPending] = useState(false);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,7 +74,13 @@ export default function LoginScreen() {
     try {
       if (mode === 'LOGIN') {
         if (!email || !password) return;
-        await login(email, password);
+        const res = await login(email, password);
+        if (res?.mfaRequired) {
+          setMfaPending(true);
+          setMfaToken(res.mfaToken || null);
+          setLoading(false);
+          return; // Stop here, wait for MFA code to be submitted
+        }
       } else {
         if (!name || !email || !password || !selectedRole) return;
         await register(name, email, password, selectedRole);
@@ -90,9 +99,30 @@ export default function LoginScreen() {
     }
   };
 
+  const handleMfaSubmit = async () => {
+    if (!mfaToken || mfaCode.length < 6) return;
+    setLoading(true);
+    try {
+      await loginWithMfa(mfaToken, mfaCode);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      console.error('MFA submit failed:', err);
+      if (Platform.OS === 'web') {
+        alert(err.message || 'MFA validation failed.');
+      } else {
+        Alert.alert('Error', err.message || 'MFA validation failed.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isFormValid = mode === 'LOGIN'
     ? (!!email && !!password)
     : (!!name && !!email && !!password && !!selectedRole);
+
+  const isMfaValid = mfaCode.length === 6;
 
   return (
     <View style={styles.container}>
@@ -111,156 +141,199 @@ export default function LoginScreen() {
             colors={Colors.gradients.accent as [string, string, ...string[]]}
             style={styles.logoWrap}
           >
-            <Ionicons name="sparkles" size={32} color={Colors.background} />
+            <Ionicons name={mfaPending ? "shield-checkmark" : "sparkles"} size={32} color={Colors.background} />
           </LinearGradient>
-          <Text style={styles.title}>Impact Hub</Text>
-          <Text style={styles.subtitle}>{mode === 'LOGIN' ? 'Welcome back' : 'Join the team'}</Text>
+          <Text style={styles.title}>{mfaPending ? 'Email Verification' : 'Impact Hub'}</Text>
+          <Text style={styles.subtitle}>{mfaPending ? 'Enter the OTP sent to your email' : (mode === 'LOGIN' ? 'Welcome back' : 'Join the team')}</Text>
         </View>
 
-        {/* Google Sign-In Button */}
-        <P
-          onPress={handleGoogleSignIn}
-          disabled={googleLoading}
-          style={({ pressed }: any) => [
-            styles.googleBtn,
-            pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
-            googleLoading && { opacity: 0.6 },
-          ]}
-        >
-          {!googleLoading && <GoogleLogo size={22} />}
-          <Text style={styles.googleBtnText}>
-            {googleLoading ? 'Signing in...' : 'Sign in with Google'}
-          </Text>
-        </P>
-
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or continue with email</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.modeToggle}>
-          <P
-            onPress={() => { setMode('LOGIN'); Haptics.selectionAsync(); }}
-            style={[styles.modeBtn, mode === 'LOGIN' && styles.modeBtnActive]}
-          >
-            <Text style={[styles.modeText, mode === 'LOGIN' && styles.modeTextActive]}>Sign In</Text>
-          </P>
-          <P
-            onPress={() => { setMode('SIGNUP'); Haptics.selectionAsync(); }}
-            style={[styles.modeBtn, mode === 'SIGNUP' && styles.modeBtnActive]}
-          >
-            <Text style={[styles.modeText, mode === 'SIGNUP' && styles.modeTextActive]}>Create Account</Text>
-          </P>
-        </View>
-
-        {/* Signup: Name field */}
-        {mode === 'SIGNUP' && (
-          <View style={styles.form}>
-            <Text style={styles.inputLabel}>Full Name</Text>
+        {mfaPending ? (
+          <View style={styles.mfaContainer}>
+            <Text style={styles.inputLabel}>6-Digit Code</Text>
             <View style={styles.inputWrap}>
-              <Feather name="user" size={16} color={Colors.textTertiary} />
+              <Feather name="shield" size={16} color={Colors.textTertiary} />
               <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter your name"
+                value={mfaCode}
+                onChangeText={setMfaCode}
+                placeholder="000000"
                 placeholderTextColor={Colors.textTertiary}
                 style={styles.input}
+                keyboardType="numeric"
+                maxLength={6}
+                autoFocus
               />
             </View>
+            <P
+              onPress={handleMfaSubmit}
+              disabled={!isMfaValid || loading}
+              style={({ pressed }: any) => [
+                styles.actionBtn,
+                { marginTop: 12 },
+                !isMfaValid && styles.actionBtnDisabled,
+                pressed && isMfaValid && { transform: [{ scale: 0.98 }] },
+              ]}
+            >
+              <LinearGradient
+                colors={(isMfaValid ? [Colors.accent, Colors.accent] : ['#475569', '#1E293B']) as any}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+              <Text style={styles.actionBtnText}>{loading ? 'Verifying...' : 'Verify & Sign In'}</Text>
+              {!loading && <Feather name="arrow-right" size={20} color={isMfaValid ? Colors.background : Colors.textSecondary} />}
+            </P>
+            <P style={{ alignItems: 'center', marginTop: 16 }} onPress={() => setMfaPending(false)}>
+              <Text style={{ color: Colors.textSecondary, fontSize: 14 }}>Back to login</Text>
+            </P>
           </View>
-        )}
+        ) : (
+          <>
+            {/* Google Sign-In Button */}
+            <P
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+              style={({ pressed }: any) => [
+                styles.googleBtn,
+                pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
+                googleLoading && { opacity: 0.6 },
+              ]}
+            >
+              {!googleLoading && <GoogleLogo size={22} />}
+              <Text style={styles.googleBtnText}>
+                {googleLoading ? 'Signing in...' : 'Sign in with Google'}
+              </Text>
+            </P>
 
-        {/* Email field (both modes) */}
-        <View style={styles.form}>
-          <Text style={styles.inputLabel}>Email</Text>
-          <View style={styles.inputWrap}>
-            <Feather name="mail" size={16} color={Colors.textTertiary} />
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="email@company.com"
-              placeholderTextColor={Colors.textTertiary}
-              style={styles.input}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <Text style={styles.inputLabel}>Password</Text>
-          <View style={styles.inputWrap}>
-            <Feather name="lock" size={16} color={Colors.textTertiary} />
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder={mode === 'SIGNUP' ? 'Min 6 characters' : 'Enter your password'}
-              placeholderTextColor={Colors.textTertiary}
-              style={styles.input}
-              secureTextEntry
-            />
-          </View>
-        </View>
-
-        {/* Role picker — only for signup */}
-        {mode === 'SIGNUP' && (
-          <View style={styles.roleSection}>
-            <Text style={styles.roleLabel}>Select Role</Text>
-            <View style={styles.roleGrid}>
-              {ROLES.map(({ role, icon, desc }) => {
-                const isSelected = selectedRole === role;
-                const accentColor = getRoleBadgeColor(role);
-                return (
-                  <P
-                    key={role}
-                    onPress={() => {
-                      setSelectedRole(role);
-                      Haptics.selectionAsync();
-                    }}
-                    style={[
-                      styles.roleCard,
-                      isSelected && { borderColor: accentColor, backgroundColor: accentColor + '10' }
-                    ]}
-                  >
-                    <View style={[styles.roleIcon, { backgroundColor: isSelected ? accentColor : 'rgba(255,255,255,0.05)' }]}>
-                      <Feather name={icon as any} size={20} color={isSelected ? Colors.background : Colors.textSecondary} />
-                    </View>
-                    <View style={styles.roleInfo}>
-                      <Text style={[styles.roleName, isSelected && { color: accentColor }]}>{getRoleLabel(role)}</Text>
-                      <Text style={styles.roleDesc}>{desc}</Text>
-                    </View>
-                    {isSelected && (
-                      <View style={[styles.checkIndicator, { backgroundColor: accentColor }]}>
-                        <Feather name="check" size={12} color={Colors.background} />
-                      </View>
-                    )}
-                  </P>
-                );
-              })}
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with email</Text>
+              <View style={styles.dividerLine} />
             </View>
-          </View>
-        )}
 
-        <P
-          onPress={handleAction}
-          disabled={!isFormValid || loading}
-          style={({ pressed }: any) => [
-            styles.actionBtn,
-            !isFormValid && styles.actionBtnDisabled,
-            pressed && isFormValid && { transform: [{ scale: 0.98 }] },
-          ]}
-        >
-          <LinearGradient
-            colors={(isFormValid ? [Colors.accent, Colors.accent] : ['#475569', '#1E293B']) as any}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          />
-          <Text style={styles.actionBtnText}>
-            {loading ? 'Processing...' : mode === 'LOGIN' ? 'Sign In' : 'Create Account'}
-          </Text>
-          {!loading && <Feather name="arrow-right" size={20} color={isFormValid ? Colors.background : Colors.textSecondary} />}
-        </P>
+            <View style={styles.modeToggle}>
+              <P
+                onPress={() => { setMode('LOGIN'); Haptics.selectionAsync(); }}
+                style={[styles.modeBtn, mode === 'LOGIN' && styles.modeBtnActive]}
+              >
+                <Text style={[styles.modeText, mode === 'LOGIN' && styles.modeTextActive]}>Sign In</Text>
+              </P>
+              <P
+                onPress={() => { setMode('SIGNUP'); Haptics.selectionAsync(); }}
+                style={[styles.modeBtn, mode === 'SIGNUP' && styles.modeBtnActive]}
+              >
+                <Text style={[styles.modeText, mode === 'SIGNUP' && styles.modeTextActive]}>Create Account</Text>
+              </P>
+            </View>
+
+            {/* Signup: Name field */}
+            {mode === 'SIGNUP' && (
+              <View style={styles.form}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <View style={styles.inputWrap}>
+                  <Feather name="user" size={16} color={Colors.textTertiary} />
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Enter your name"
+                    placeholderTextColor={Colors.textTertiary}
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Email field (both modes) */}
+            <View style={styles.form}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputWrap}>
+                <Feather name="mail" size={16} color={Colors.textTertiary} />
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="email@company.com"
+                  placeholderTextColor={Colors.textTertiary}
+                  style={styles.input}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrap}>
+                <Feather name="lock" size={16} color={Colors.textTertiary} />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={mode === 'SIGNUP' ? 'Min 6 characters' : 'Enter your password'}
+                  placeholderTextColor={Colors.textTertiary}
+                  style={styles.input}
+                  secureTextEntry
+                />
+              </View>
+            </View>
+
+            {/* Role picker — only for signup */}
+            {mode === 'SIGNUP' && (
+              <View style={styles.roleSection}>
+                <Text style={styles.roleLabel}>Select Role</Text>
+                <View style={styles.roleGrid}>
+                  {ROLES.map(({ role, icon, desc }) => {
+                    const isSelected = selectedRole === role;
+                    const accentColor = getRoleBadgeColor(role);
+                    return (
+                      <P
+                        key={role}
+                        onPress={() => {
+                          setSelectedRole(role);
+                          Haptics.selectionAsync();
+                        }}
+                        style={[
+                          styles.roleCard,
+                          isSelected && { borderColor: accentColor, backgroundColor: accentColor + '10' }
+                        ]}
+                      >
+                        <View style={[styles.roleIcon, { backgroundColor: isSelected ? accentColor : 'rgba(255,255,255,0.05)' }]}>
+                          <Feather name={icon as any} size={20} color={isSelected ? Colors.background : Colors.textSecondary} />
+                        </View>
+                        <View style={styles.roleInfo}>
+                          <Text style={[styles.roleName, isSelected && { color: accentColor }]}>{getRoleLabel(role)}</Text>
+                          <Text style={styles.roleDesc}>{desc}</Text>
+                        </View>
+                        {isSelected && (
+                          <View style={[styles.checkIndicator, { backgroundColor: accentColor }]}>
+                            <Feather name="check" size={12} color={Colors.background} />
+                          </View>
+                        )}
+                      </P>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            <P
+              onPress={handleAction}
+              disabled={!isFormValid || loading}
+              style={({ pressed }: any) => [
+                styles.actionBtn,
+                !isFormValid && styles.actionBtnDisabled,
+                pressed && isFormValid && { transform: [{ scale: 0.98 }] },
+              ]}
+            >
+              <LinearGradient
+                colors={(isFormValid ? [Colors.accent, Colors.accent] : ['#475569', '#1E293B']) as any}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+              <Text style={styles.actionBtnText}>
+                {loading ? 'Processing...' : mode === 'LOGIN' ? 'Sign In' : 'Create Account'}
+              </Text>
+              {!loading && <Feather name="arrow-right" size={20} color={isFormValid ? Colors.background : Colors.textSecondary} />}
+            </P>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -320,6 +393,7 @@ const styles = StyleSheet.create({
   },
 
   modeToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 4, gap: 4 },
+  mfaContainer: { gap: 16, marginTop: 16 },
   modeBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
   modeBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)' },
   modeText: { fontSize: 13, fontWeight: '700', color: Colors.textTertiary },

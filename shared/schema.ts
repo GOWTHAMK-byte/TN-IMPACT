@@ -110,6 +110,8 @@ export const users = pgTable("users", {
   managerId: varchar("manager_id").references((): any => users.id),
   ssoProvider: text("sso_provider"),
   ssoProviderId: text("sso_provider_id"),
+  otpCode: text("otp_code"),
+  otpExpiresAt: timestamp("otp_expires_at"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -288,6 +290,16 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   role: z.enum(["EMPLOYEE", "MANAGER", "HR_ADMIN", "IT_ADMIN", "FINANCE_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
+});
+
+export const mfaLoginSchema = z.object({
+  mfaToken: z.string().min(1),
+  code: z.string().length(6),
+});
+
+export const mfaVerifySchema = z.object({
+  code: z.string().length(6),
+  secret: z.string().min(1),
 });
 
 export const createLeaveSchema = z.object({

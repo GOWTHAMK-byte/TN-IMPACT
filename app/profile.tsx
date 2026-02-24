@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert, Image, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,6 +8,7 @@ import Colors from '@/constants/colors';
 import { useAuth, getRoleLabel, getRoleBadgeColor } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Avatar, Card, InfoRow } from '@/components/ui';
+import { apiClient } from '@/lib/api';
 
 const P = Pressable as any;
 
@@ -20,6 +22,8 @@ export default function ProfileScreen() {
     activeTickets: tickets.filter(t => t.createdBy === user?.id && !['Resolved', 'Closed'].includes(t.status)).length,
     totalExpenses: expenses.filter(e => e.submittedBy === user?.id).reduce((s, e) => s + e.amount, 0),
   };
+
+
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
@@ -80,6 +84,8 @@ export default function ProfileScreen() {
           <InfoRow icon="hash" label="Internal ID" value={user?.id || ''} />
         </Card>
 
+
+
         <P
           onPress={handleLogout}
           style={({ pressed }: { pressed: boolean }) => [styles.logoutBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
@@ -121,4 +127,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: Colors.error },
+  mfaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, backgroundColor: Colors.text, paddingVertical: 14, borderRadius: 12 },
+  mfaBtnText: { color: Colors.background, fontSize: 13, fontWeight: '700' },
+  mfaSetupBox: { paddingHorizontal: 16, paddingBottom: 16 },
+  mfaSetupDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  qrCodeWrapper: { backgroundColor: '#fff', padding: 8, borderRadius: 12, alignSelf: 'center', marginVertical: 16 },
+  qrCode: { width: 140, height: 140 },
+  mfaSecretText: { fontSize: 11, color: Colors.textTertiary, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 },
+  mfaInput: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12, paddingHorizontal: 16, height: 48, color: '#fff', fontSize: 20, letterSpacing: 6, textAlign: 'center', marginTop: 12 },
+  mfaActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  mfaCancelBtn: { flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  mfaCancelText: { color: Colors.text, fontWeight: '600', fontSize: 13 },
+  mfaVerifyBtn: { flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent },
+  mfaVerifyText: { color: Colors.background, fontWeight: '700', fontSize: 13 },
 });

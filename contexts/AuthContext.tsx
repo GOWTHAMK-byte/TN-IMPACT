@@ -33,7 +33,8 @@ export interface User {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ mfaRequired?: boolean, mfaToken?: string } | void>;
+  loginWithMfa: (mfaToken: string, code: string) => Promise<void>;
   register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -58,9 +59,9 @@ export const ALL_USERS: User[] = [
   { id: 'u1', name: 'Alex Rivera', email: 'alex.rivera@company.com', role: 'EMPLOYEE', department: 'Engineering', avatar: 'AR', title: 'Software Engineer', phone: '+1 (555) 123-4567', managerId: 'u2' },
   { id: 'u2', name: 'Sarah Chen', email: 'sarah.chen@company.com', role: 'MANAGER', department: 'Engineering', avatar: 'SC', title: 'Engineering Manager', phone: '+1 (555) 234-5678' },
   { id: 'u3', name: 'Michael Torres', email: 'michael.torres@company.com', role: 'HR_ADMIN', department: 'Human Resources', avatar: 'MT', title: 'HR Director', phone: '+1 (555) 345-6789' },
-  { id: 'u4', name: 'Priya Sharma', email: 'priya.sharma@company.com', role: 'IT_ADMIN', department: 'IT', avatar: 'PS', title: 'IT Administrator', phone: '+1 (555) 456-7890' },
-  { id: 'u5', name: 'David Kim', email: 'david.kim@company.com', role: 'FINANCE_ADMIN', department: 'Finance', avatar: 'DK', title: 'Finance Manager', phone: '+1 (555) 567-8901' },
-  { id: 'u6', name: 'Emma Wilson', email: 'emma.wilson@company.com', role: 'SUPER_ADMIN', department: 'Executive', avatar: 'EW', title: 'Chief Operations Officer', phone: '+1 (555) 678-9012' },
+  { id: 'u4', name: 'Priya Sharma', email: 'priya.sharma@company.com', role: 'IT_ADMIN', department: 'Information Technology', avatar: 'PS', title: 'IT Administrator', phone: '+1 (555) 456-7890' },
+  { id: 'u5', name: 'David Kim', email: 'david.kim@company.com', role: 'FINANCE_ADMIN', department: 'Finance', avatar: 'DK', title: 'Finance Director', phone: '+1 (555) 567-8901' },
+  { id: 'u6', name: 'Emma Wilson', email: 'emma.wilson@company.com', role: 'SUPER_ADMIN', department: 'Executive', avatar: 'EW', title: 'CEO', phone: '+1 (555) 678-9012' },
 ];
 
 function mapResponseToUser(response: any): User {
@@ -112,11 +113,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await apiClient.login(email, password);
+      if (response.mfaRequired) {
+        return { mfaRequired: true, mfaToken: response.mfaToken };
+      }
       await setAccessToken(response.accessToken);
       await setRefreshToken(response.refreshToken);
       setUser(mapResponseToUser(response));
     } catch (err) {
       console.error('Login failed:', err);
+      throw err;
+    }
+  }, []);
+
+  const loginWithMfa = useCallback(async (mfaToken: string, code: string) => {
+    try {
+      const response = await apiClient.loginWithMfa(mfaToken, code);
+      await setAccessToken(response.accessToken);
+      await setRefreshToken(response.refreshToken);
+      setUser(mapResponseToUser(response));
+    } catch (err) {
+      console.error('MFA Login failed:', err);
       throw err;
     }
   }, []);
@@ -166,7 +182,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Mobile: Use backend callback flow via tunnel
         // Expo Go only handles exp:// URLs, not custom schemes like servicehub://
-        const callbackUrl = 'https://de18-2401-4900-889f-4238-835-50ec-5025-c383.ngrok-free.app/api/auth/google/callback';
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+        const callbackUrl = `${apiUrl}/api/auth/google/callback`;
 
         // Get the Expo Go return URL (e.g. exp://192.168.1.9:8081)
         const returnUrl = AuthSession.makeRedirectUri({ scheme: 'servicehub' });
@@ -237,11 +254,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     login,
+    loginWithMfa,
     register,
     loginWithGoogle,
     logout,
     isAuthenticated: !!user,
-  }), [user, isLoading, login, register, loginWithGoogle, logout]);
+  }), [user, isLoading, login, loginWithMfa, register, loginWithGoogle, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
