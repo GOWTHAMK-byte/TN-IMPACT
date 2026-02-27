@@ -57,12 +57,6 @@ export function Card({ children, style, onPress, delay = 0 }: { children: React.
           onPress && pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }
         ]}
       >
-        <LinearGradient
-          colors={Colors.gradients.glass as [string, string, ...string[]]}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
         {children}
       </Wrapper>
     </Animated.View>
@@ -129,7 +123,7 @@ export function FAB({ onPress, icon = 'plus' }: { onPress: () => void; icon?: st
           colors={Colors.gradients.accent as [string, string, ...string[]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.fabGradient}
+          style={styles.fabInner}
         >
           <Feather name={icon as any} size={24} color="#fff" />
         </LinearGradient>
@@ -178,7 +172,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: Colors.divider,
   },
   badgeDot: {
     width: 6,
@@ -212,7 +206,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: Colors.inputBg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -257,7 +251,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: Colors.divider,
   },
   avatarText: {
     color: '#fff',
@@ -285,7 +279,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
   },
-  fabGradient: {
+  fabInner: {
     width: '100%',
     height: '100%',
     alignItems: 'center',

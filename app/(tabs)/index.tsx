@@ -2,7 +2,6 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Redirect } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleLabel, getRoleBadgeColor, UserRole } from '@/contexts/AuthContext';
@@ -64,9 +63,8 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={Colors.gradients.background as [string, string, ...string[]]}
-        style={StyleSheet.absoluteFill}
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]}
       />
 
       <ScrollView
@@ -114,12 +112,11 @@ export default function DashboardScreen() {
                   onPress={() => router.push(action.route as any)}
                   style={({ pressed }: any) => [styles.quickCard, pressed && { transform: [{ scale: 0.94 }] }]}
                 >
-                  <LinearGradient
-                    colors={[(action.color + '30'), (action.color + '10')] as [string, string, ...string[]]}
-                    style={styles.quickIcon}
+                  <View
+                    style={[styles.quickIcon, { backgroundColor: action.color + '15' }]}
                   >
                     <Feather name={action.icon as any} size={20} color={action.color} />
-                  </LinearGradient>
+                  </View>
                   <Text style={styles.quickLabel}>{action.label}</Text>
                 </P>
               </Animated.View>
@@ -233,7 +230,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   greeting: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
-  userName: { fontSize: 32, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -1 },
+  userName: { fontSize: 32, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -1 },
   notifBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   notifBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.background },
   notifBadgeText: { fontSize: 10, fontWeight: '900', color: '#fff' },

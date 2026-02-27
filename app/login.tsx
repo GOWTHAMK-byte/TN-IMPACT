@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Dimensions, TextInput, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import Colors from '@/constants/colors';
@@ -124,10 +124,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={Colors.gradients.background as [string, string, ...string[]]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + webTopInset + 20, paddingBottom: insets.bottom + 40 }]}
@@ -135,12 +132,11 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <LinearGradient
-            colors={Colors.gradients.accent as [string, string, ...string[]]}
-            style={styles.logoWrap}
+          <View
+            style={[styles.logoWrap, { backgroundColor: Colors.accent }]}
           >
             <Ionicons name={mfaPending ? "shield-checkmark" : "sparkles"} size={32} color={Colors.background} />
-          </LinearGradient>
+          </View>
           <Text style={styles.title}>{mfaPending ? 'Email Verification' : 'Impact Hub'}</Text>
           <Text style={styles.subtitle}>{mfaPending ? 'Enter the OTP sent to your email' : (mode === 'LOGIN' ? 'Welcome back' : 'Join the team')}</Text>
         </View>
@@ -172,7 +168,7 @@ export default function LoginScreen() {
               ]}
             >
               <LinearGradient
-                colors={(isMfaValid ? [Colors.accent, Colors.accent] : ['#475569', '#1E293B']) as any}
+                colors={(isMfaValid ? Colors.gradients.accent : ['#1E293B', '#0F172A']) as any}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -320,7 +316,7 @@ export default function LoginScreen() {
               ]}
             >
               <LinearGradient
-                colors={(isFormValid ? [Colors.accent, Colors.accent] : ['#475569', '#1E293B']) as any}
+                colors={(isFormValid ? Colors.gradients.accent : ['#1E293B', '#0F172A']) as any}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -346,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 20,
     shadowColor: Colors.accent, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20,
   },
-  title: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  title: { fontSize: 32, fontWeight: '900', color: Colors.text, letterSpacing: -1 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 4, fontWeight: '500' },
 
   // Google Sign-In Button
@@ -395,11 +391,11 @@ const styles = StyleSheet.create({
   modeBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
   modeBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)' },
   modeText: { fontSize: 13, fontWeight: '700', color: Colors.textTertiary },
-  modeTextActive: { color: '#fff' },
+  modeTextActive: { color: Colors.text },
   form: { gap: 16 },
   inputLabel: { fontSize: 10, fontWeight: '800', color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 2, marginBottom: -4 },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  input: { flex: 1, height: 52, color: '#fff', fontSize: 15 },
+  input: { flex: 1, height: 52, color: Colors.text, fontSize: 15 },
   roleSection: { gap: 16 },
   roleLabel: { fontSize: 10, fontWeight: '800', color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 2 },
   roleGrid: { gap: 12 },

@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData, LeaveRequest } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB } from '@/components/ui';
 import { useState, useCallback, useMemo } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
 
 type FilterType = 'All' | 'Pending' | 'Approved' | 'Rejected';
 
@@ -83,9 +82,8 @@ export default function HRScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={Colors.gradients.background as [string, string, ...string[]]}
-        style={StyleSheet.absoluteFill}
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]}
       />
       <View style={[styles.headerArea, { paddingTop: insets.top + webTopInset + 12 }]}>
         <Text style={styles.pageTitle}>Leaves</Text>
@@ -134,7 +132,7 @@ export default function HRScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerArea: { paddingHorizontal: 20, paddingBottom: 8 },
-  pageTitle: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1, marginBottom: 12 },
+  pageTitle: { fontSize: 32, fontWeight: '900', color: Colors.text, letterSpacing: -1, marginBottom: 12 },
   balanceStrip: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', gap: 12 },
   balItem: { flex: 1, alignItems: 'center' },
   balVal: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },

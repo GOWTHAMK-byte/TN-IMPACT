@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData, Ticket, TicketStatus } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB, PriorityIndicator } from '@/components/ui';
 import { useState, useCallback, useMemo } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
 
 type FilterType = 'All' | 'Open' | 'In Progress' | 'Resolved';
 const P = Pressable as any;
@@ -156,9 +155,8 @@ export default function TicketsScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={Colors.gradients.background as [string, string, ...string[]]}
-        style={StyleSheet.absoluteFill}
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]}
       />
       <View style={[styles.headerArea, { paddingTop: insets.top + webTopInset + 12 }]}>
         <Text style={styles.pageTitle}>IT Support</Text>
@@ -207,7 +205,7 @@ export default function TicketsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerArea: { paddingHorizontal: 20, paddingBottom: 8 },
-  pageTitle: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: -1, marginBottom: 16 },
+  pageTitle: { fontSize: 32, fontWeight: '900', color: Colors.text, letterSpacing: -1, marginBottom: 16 },
   statsRow: { flexDirection: 'row', gap: 12 },
   statItem: { flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 20, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   statValue: { fontSize: 24, fontWeight: '900' },
