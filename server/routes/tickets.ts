@@ -19,9 +19,13 @@ const addCommentSchema = z.object({
 // POST /api/tickets
 router.post("/", authenticateToken, validate(createTicketSchema), async (req, res) => {
     try {
+        const user = await storage.getUserById(req.user!.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
         const ticket = await storage.createTicket({
             ...req.body,
             createdBy: req.user!.id,
+            projectId: user.projectId || undefined,
         });
 
         await storage.createAuditLog({
@@ -82,7 +86,7 @@ router.get("/", authenticateToken, async (req, res) => {
 // GET /api/tickets/:id
 router.get("/:id", authenticateToken, async (req, res) => {
     try {
-        const ticket = await storage.getTicketById(req.params.id);
+        const ticket = await storage.getTicketById(req.params.id as string);
         if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
         const creator = await storage.getUserById(ticket.createdBy);
@@ -115,7 +119,7 @@ router.patch(
     validate(updateStatusSchema),
     async (req, res) => {
         try {
-            const ticket = await storage.getTicketById(req.params.id);
+            const ticket = await storage.getTicketById(req.params.id as string);
             if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
             await storage.updateTicketStatus(ticket.id, req.body.status, req.body.assignedTo);
@@ -149,7 +153,7 @@ router.patch(
 // POST /api/tickets/:id/comments
 router.post("/:id/comments", authenticateToken, validate(addCommentSchema), async (req, res) => {
     try {
-        const ticket = await storage.getTicketById(req.params.id);
+        const ticket = await storage.getTicketById(req.params.id as string);
         if (!ticket) return res.status(404).json({ message: "Ticket not found" });
 
         const comment = await storage.addTicketComment({

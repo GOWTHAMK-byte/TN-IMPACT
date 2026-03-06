@@ -16,7 +16,7 @@ const P = Pressable as any;
 export default function HRScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { leaves, leaveBalance, updateLeaveStatus, refreshData } = useData();
+  const { leaves, leaveBalance, updateLeaveStatus, refreshData, projects } = useData();
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -51,34 +51,46 @@ export default function HRScreen() {
 
   const FILTERS: FilterType[] = ['All', 'Pending', 'Approved', 'Rejected'];
 
-  const renderLeave = ({ item }: { item: LeaveRequest }) => (
-    <Card style={styles.leaveCard}>
-      <View style={styles.leaveHeader}>
-        <View style={styles.leaveTypeWrap}>
-          <Feather name="calendar" size={14} color={Colors.accent} />
-          <Text style={styles.leaveType}>{item.leaveType}</Text>
+  const renderLeave = ({ item }: { item: LeaveRequest }) => {
+    const project = projects.find(p => p.id === item.projectId);
+    return (
+      <Card style={styles.leaveCard}>
+        <View style={styles.leaveHeader}>
+          <View style={styles.leaveTypeWrap}>
+            <Feather name="calendar" size={14} color={Colors.accent} />
+            <Text style={styles.leaveType}>{item.leaveType}</Text>
+          </View>
+          <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
         </View>
-        <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
-      </View>
-      <Text style={styles.leaveName}>{item.employeeName}</Text>
-      <View style={styles.leaveDates}>
-        <Feather name="clock" size={13} color={Colors.textTertiary} />
-        <Text style={styles.leaveDateText}>{item.startDate} to {item.endDate}</Text>
-      </View>
-      {item.reason ? <Text style={styles.leaveReason} numberOfLines={2}>{item.reason}</Text> : null}
-      {isApprover && item.status.startsWith('Pending') && (
-        <View style={styles.actionRow}>
-          <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
-            <Feather name="check" size={16} color="#fff" />
-            <Text style={styles.approveBtnText}>Approve</Text>
-          </P>
-          <P onPress={() => handleReject(item)} style={({ pressed }: any) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
-            <Text style={styles.rejectBtnText}>Reject</Text>
-          </P>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <Text style={styles.leaveName}>{item.employeeName}</Text>
+          {project && (
+            <View style={{ backgroundColor: Colors.accent + '14', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+              <Text style={{ fontSize: 10, color: Colors.accent, fontWeight: '700' }}>{project.name}</Text>
+            </View>
+          )}
         </View>
-      )}
-    </Card>
-  );
+
+        <View style={styles.leaveDates}>
+          <Feather name="clock" size={13} color={Colors.textTertiary} />
+          <Text style={styles.leaveDateText}>{item.startDate} to {item.endDate}</Text>
+        </View>
+        {item.reason ? <Text style={styles.leaveReason} numberOfLines={2}>{item.reason}</Text> : null}
+        {isApprover && item.status.startsWith('Pending') && (
+          <View style={styles.actionRow}>
+            <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
+              <Feather name="check" size={16} color="#fff" />
+              <Text style={styles.approveBtnText}>Approve</Text>
+            </P>
+            <P onPress={() => handleReject(item)} style={({ pressed }: any) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
+              <Text style={styles.rejectBtnText}>Reject</Text>
+            </P>
+          </View>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <View style={styles.container}>

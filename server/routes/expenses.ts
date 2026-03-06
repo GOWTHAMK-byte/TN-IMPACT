@@ -9,20 +9,31 @@ const router = Router();
 // POST /api/expenses
 router.post("/", authenticateToken, validate(createExpenseSchema), async (req, res) => {
     try {
+        const user = await storage.getUserById(req.user!.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
         const expense = await storage.createExpense({
             ...req.body,
             amount: req.body.amount.toString(),
             submittedBy: req.user!.id,
+            projectId: user.projectId || undefined,
             status: "Pending_Manager",
         });
 
-        // Get user to find manager
-        const user = await storage.getUserById(req.user!.id);
-        if (user?.managerId) {
+        // Determine who gets notified: the specific Project Manager, fallback to default manager
+        let targetManagerId = user.managerId;
+        if (user.projectId) {
+            const project = await storage.getProjectById(user.projectId);
+            if (project && project.managerId) {
+                targetManagerId = project.managerId;
+            }
+        }
+
+        if (targetManagerId) {
             await storage.createNotification({
-                userId: user.managerId,
+                userId: targetManagerId,
                 title: "Expense Submitted",
-                body: `${user.name} submitted an expense: ${req.body.title}`,
+                body: `${user.name} submitted an expense: ${req.body.title} [Status: ${expense.status}]`,
                 type: "action_required",
                 entityType: "expense",
                 entityId: expense.id,
@@ -91,7 +102,7 @@ router.patch(
     validate(approvalActionSchema),
     async (req, res) => {
         try {
-            const expense = await storage.getExpenseById(req.params.id);
+            const expense = await storage.getExpenseById(req.params.id as string);
             if (!expense) return res.status(404).json({ message: "Expense not found" });
 
             const { action, comment } = req.body;

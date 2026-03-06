@@ -15,7 +15,7 @@ const P = Pressable as any;
 export default function ExpensesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { expenses, updateExpenseStatus, refreshData } = useData();
+  const { expenses, updateExpenseStatus, refreshData, projects } = useData();
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -65,37 +65,47 @@ export default function ExpensesScreen() {
     return 'file-text';
   };
 
-  const renderExpense = ({ item }: { item: Expense }) => (
-    <Card style={styles.expenseCard}>
-      <View style={styles.expenseHeader}>
-        <View style={styles.expenseIconWrap}>
-          <Feather name={getCategoryIcon(item.category) as any} size={18} color={Colors.accent} />
+  const renderExpense = ({ item }: { item: Expense }) => {
+    const project = projects.find(p => p.id === item.projectId);
+    return (
+      <Card style={styles.expenseCard}>
+        <View style={styles.expenseHeader}>
+          <View style={styles.expenseIconWrap}>
+            <Feather name={getCategoryIcon(item.category) as any} size={18} color={Colors.accent} />
+          </View>
+          <View style={styles.expenseInfo}>
+            <Text style={styles.expenseTitle}>{item.title}</Text>
+            <Text style={styles.expenseCategory}>{item.category}</Text>
+          </View>
+          <View style={styles.expenseRight}>
+            <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
+            <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
+          </View>
         </View>
-        <View style={styles.expenseInfo}>
-          <Text style={styles.expenseTitle}>{item.title}</Text>
-          <Text style={styles.expenseCategory}>{item.category}</Text>
+        <View style={styles.expenseMeta}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.expenseBy}>{item.submittedByName}</Text>
+            {project && (
+              <View style={{ backgroundColor: Colors.accent + '14', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 10, color: Colors.accent, fontWeight: '700' }}>{project.name}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.expenseDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
         </View>
-        <View style={styles.expenseRight}>
-          <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
-          <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
-        </View>
-      </View>
-      <View style={styles.expenseMeta}>
-        <Text style={styles.expenseBy}>{item.submittedByName}</Text>
-        <Text style={styles.expenseDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-      </View>
-      {isApprover && item.status.startsWith('Pending') && (
-        <View style={styles.actionRow}>
-          <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
-            <Text style={styles.approveBtnText}>Approve</Text>
-          </P>
-          <P onPress={() => handleReject(item)} style={({ pressed }: any) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
-            <Text style={styles.rejectBtnText}>Reject</Text>
-          </P>
-        </View>
-      )}
-    </Card>
-  );
+        {isApprover && item.status.startsWith('Pending') && (
+          <View style={styles.actionRow}>
+            <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>
+              <Text style={styles.approveBtnText}>Approve</Text>
+            </P>
+            <P onPress={() => handleReject(item)} style={({ pressed }: any) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}>
+              <Text style={styles.rejectBtnText}>Reject</Text>
+            </P>
+          </View>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <View style={styles.container}>

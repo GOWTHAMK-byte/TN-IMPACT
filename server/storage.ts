@@ -2,10 +2,10 @@ import { db } from "./db";
 import {
   users, leaves, leaveApprovals, leaveBalances,
   tickets, ticketComments, expenses, expenseApprovals,
-  notifications, auditLogs, refreshTokens,
+  notifications, auditLogs, refreshTokens, projects,
 } from "@shared/schema";
-import type { UserRole } from "@shared/schema";
-import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
+import type { UserRole, Project } from "@shared/schema";
+import { eq, and, or, ilike, desc, sql, inArray } from "drizzle-orm";
 
 // ── Users ──────────────────────────────────────────────────────────────────
 
@@ -19,35 +19,7 @@ export async function getUserByEmail(email: string) {
   return user || null;
 }
 
-export async function getUserBySsoId(provider: string, providerId: string) {
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.ssoProvider, provider), eq(users.ssoProviderId, providerId)))
-    .limit(1);
-  return user || null;
-}
 
-export async function linkSsoToUser(userId: string, provider: string, providerId: string) {
-  await db
-    .update(users)
-    .set({ ssoProvider: provider, ssoProviderId: providerId, updatedAt: new Date() })
-    .where(eq(users.id, userId));
-}
-
-export async function saveUserOtp(userId: string, otpCode: string, expiresAt: Date) {
-  await db
-    .update(users)
-    .set({ otpCode, otpExpiresAt: expiresAt, updatedAt: new Date() })
-    .where(eq(users.id, userId));
-}
-
-export async function clearUserOtp(userId: string) {
-  await db
-    .update(users)
-    .set({ otpCode: null, otpExpiresAt: null, updatedAt: new Date() })
-    .where(eq(users.id, userId));
-}
 
 export async function getUsers(filters?: { department?: string; role?: UserRole; search?: string }) {
   const conditions = [eq(users.isActive, true)];
@@ -84,10 +56,14 @@ export async function createUser(data: {
   phone?: string;
   avatar?: string;
   managerId?: string;
-  ssoProvider?: string;
-  ssoProviderId?: string;
+  projectId?: string;
 }) {
   const [user] = await db.insert(users).values(data).returning();
+  return user;
+}
+
+export async function updateUser(id: string, data: Partial<typeof users.$inferInsert>) {
+  const [user] = await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id)).returning();
   return user;
 }
 
@@ -134,6 +110,7 @@ export async function updateLeaveBalance(userId: string, data: { annual?: number
 export async function createLeave(data: {
   employeeId: string;
   managerId?: string;
+  projectId?: string;
   leaveType: any;
   startDate: string;
   endDate: string;
@@ -166,7 +143,16 @@ export async function getLeaves(filters: {
     return db.select().from(leaves).orderBy(desc(leaves.createdAt));
   }
   if (filters.managerId) {
-    return db.select().from(leaves).where(eq(leaves.managerId, filters.managerId)).orderBy(desc(leaves.createdAt));
+    // A manager can see leaves where they are the direct manager OR where they manage the project the leaf belongs to
+    const managedProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.managerId, filters.managerId));
+    const projectIds = managedProjects.map(p => p.id);
+
+    return db.select().from(leaves)
+      .where(or(
+        eq(leaves.managerId, filters.managerId),
+        projectIds.length > 0 ? inArray(leaves.projectId, projectIds) : sql`false`
+      ))
+      .orderBy(desc(leaves.createdAt));
   }
   if (filters.employeeId) {
     return db.select().from(leaves).where(eq(leaves.employeeId, filters.employeeId)).orderBy(desc(leaves.createdAt));
@@ -196,6 +182,7 @@ export async function createTicket(data: {
   category: any;
   priority: any;
   createdBy: string;
+  projectId?: string;
   assignedTo?: string;
 }) {
   const slaHours =
@@ -209,11 +196,21 @@ export async function createTicket(data: {
 export async function getTickets(filters: {
   createdBy?: string;
   assignedTo?: string;
+  managerId?: string;
   status?: string;
   all?: boolean;
 }) {
   if (filters.all) {
     return db.select().from(tickets).orderBy(desc(tickets.createdAt));
+  }
+  if (filters.managerId) {
+    const managedProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.managerId, filters.managerId));
+    const projectIds = managedProjects.map(p => p.id);
+    if (projectIds.length > 0) {
+      return db.select().from(tickets).where(inArray(tickets.projectId, projectIds)).orderBy(desc(tickets.createdAt));
+    } else {
+      return [];
+    }
   }
   if (filters.assignedTo) {
     return db.select().from(tickets).where(eq(tickets.assignedTo, filters.assignedTo)).orderBy(desc(tickets.createdAt));
@@ -255,6 +252,7 @@ export async function createExpense(data: {
   category: string;
   receiptUri?: string;
   submittedBy: string;
+  projectId?: string;
   status?: any;
 }) {
   const [expense] = await db
@@ -274,10 +272,23 @@ export async function createExpense(data: {
 
 export async function getExpenses(filters: {
   submittedBy?: string;
+  managerId?: string;
   all?: boolean;
 }) {
   if (filters.all) {
     return db.select().from(expenses).orderBy(desc(expenses.createdAt));
+  }
+  if (filters.managerId) {
+    const managedProjects = await db.select({ id: projects.id }).from(projects).where(eq(projects.managerId, filters.managerId));
+    const projectIds = managedProjects.map(p => p.id);
+
+    return db.select().from(expenses)
+      .where(or(
+        projectIds.length > 0 ? inArray(expenses.projectId, projectIds) : sql`false`,
+        // Fallback for expenses submitted by direct reports before projects existed
+        inArray(expenses.submittedBy, db.select({ id: users.id }).from(users).where(eq(users.managerId, filters.managerId)))
+      ))
+      .orderBy(desc(expenses.createdAt));
   }
   if (filters.submittedBy) {
     return db
@@ -346,6 +357,27 @@ export async function createAuditLog(data: {
   details?: string;
 }) {
   await db.insert(auditLogs).values(data);
+}
+
+// ── Projects ───────────────────────────────────────────────────────────────
+
+export async function createProject(data: { name: string; description?: string; managerId?: string }) {
+  const [project] = await db.insert(projects).values(data).returning();
+  return project;
+}
+
+export async function getProjects() {
+  return db.select().from(projects).orderBy(projects.name);
+}
+
+export async function getProjectById(id: string) {
+  const [project] = await db.select().from(projects).where(eq(projects.id, id)).limit(1);
+  return project || null;
+}
+
+export async function updateProject(id: string, data: Partial<{ name: string; description: string; managerId: string }>) {
+  const [project] = await db.update(projects).set({ ...data, updatedAt: new Date() }).where(eq(projects.id, id)).returning();
+  return project;
 }
 
 // ── Search ─────────────────────────────────────────────────────────────────

@@ -1,20 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import { apiClient, setAccessToken, setRefreshToken, clearTokens, getAccessToken } from '@/lib/api';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
-
-// Complete auth session for web
-WebBrowser.maybeCompleteAuthSession();
-
-// Google OAuth config — replace with your actual Client ID
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
-
-const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-};
 
 export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'IT_ADMIN' | 'FINANCE_ADMIN' | 'SUPER_ADMIN';
 
@@ -33,10 +18,8 @@ export interface User {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ mfaRequired?: boolean, mfaToken?: string } | void>;
-  loginWithMfa: (mfaToken: string, code: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -113,26 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await apiClient.login(email, password);
-      if (response.mfaRequired) {
-        return { mfaRequired: true, mfaToken: response.mfaToken };
-      }
       await setAccessToken(response.accessToken);
       await setRefreshToken(response.refreshToken);
       setUser(mapResponseToUser(response));
     } catch (err) {
       console.error('Login failed:', err);
-      throw err;
-    }
-  }, []);
-
-  const loginWithMfa = useCallback(async (mfaToken: string, code: string) => {
-    try {
-      const response = await apiClient.loginWithMfa(mfaToken, code);
-      await setAccessToken(response.accessToken);
-      await setRefreshToken(response.refreshToken);
-      setUser(mapResponseToUser(response));
-    } catch (err) {
-      console.error('MFA Login failed:', err);
       throw err;
     }
   }, []);
@@ -145,97 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(mapResponseToUser(response));
     } catch (err) {
       console.error('Register failed:', err);
-      throw err;
-    }
-  }, []);
-
-  const loginWithGoogle = useCallback(async () => {
-    try {
-      if (Platform.OS === 'web') {
-        // Web: Use implicit flow (AuthRequest → id_token → backend POST)
-        const redirectUri = AuthSession.makeRedirectUri({ scheme: 'servicehub' });
-        console.log('🔗 Google OAuth redirect URI (web):', redirectUri);
-
-        const request = new AuthSession.AuthRequest({
-          clientId: GOOGLE_CLIENT_ID,
-          scopes: ['openid', 'profile', 'email'],
-          redirectUri,
-          responseType: AuthSession.ResponseType.IdToken,
-          usePKCE: false,
-          prompt: AuthSession.Prompt.SelectAccount, // Force account selection
-          extraParams: {
-            nonce: Math.random().toString(36).substring(2),
-          },
-        });
-
-        const result = await request.promptAsync(discovery);
-
-        if (result.type === 'success' && result.params?.id_token) {
-          const idToken = result.params.id_token;
-          const response = await apiClient.googleLogin(idToken);
-          await setAccessToken(response.accessToken);
-          await setRefreshToken(response.refreshToken);
-          setUser(mapResponseToUser(response));
-        } else if (result.type === 'error') {
-          throw new Error(result.error?.message || 'Google Sign-In failed');
-        }
-      } else {
-        // Mobile: Use backend callback flow via tunnel
-        // Expo Go only handles exp:// URLs, not custom schemes like servicehub://
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
-        const callbackUrl = `${apiUrl}/api/auth/google/callback`;
-
-        // Get the Expo Go return URL (e.g. exp://192.168.1.9:8081)
-        const returnUrl = AuthSession.makeRedirectUri({ scheme: 'servicehub' });
-        console.log('🔗 Return URL for Expo Go:', returnUrl);
-
-        // Build Google OAuth URL — pass returnUrl via state param so backend knows where to redirect
-        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-          `client_id=${GOOGLE_CLIENT_ID}` +
-          `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-          `&response_type=code` +
-          `&scope=${encodeURIComponent('openid profile email')}` +
-          `&state=${encodeURIComponent(returnUrl)}` +
-          `&prompt=select_account` + // Force account selection
-          `&access_type=offline`;
-
-        console.log('🔗 Callback URL:', callbackUrl);
-
-        const result = await WebBrowser.openAuthSessionAsync(
-          googleAuthUrl,
-          returnUrl  // Expo Go listens for exp:// URLs
-        );
-
-        if (result.type === 'success' && result.url) {
-          // Parse tokens from the deep link URL
-          const url = new URL(result.url);
-          const accessToken = url.searchParams.get('accessToken');
-          const refreshToken = url.searchParams.get('refreshToken');
-          const userData = url.searchParams.get('user');
-
-          if (accessToken && refreshToken && userData) {
-            await setAccessToken(accessToken);
-            await setRefreshToken(refreshToken);
-            const parsedUser = JSON.parse(decodeURIComponent(userData));
-            setUser({
-              id: parsedUser.id,
-              name: parsedUser.name,
-              email: parsedUser.email,
-              role: parsedUser.role,
-              department: parsedUser.department,
-              avatar: parsedUser.avatar || parsedUser.name.substring(0, 2).toUpperCase(),
-              title: parsedUser.title || '',
-              phone: parsedUser.phone || '',
-              managerId: parsedUser.managerId,
-            });
-          } else {
-            throw new Error('Missing tokens in callback response');
-          }
-        }
-        // type === 'cancel'/'dismiss' means user cancelled — do nothing
-      }
-    } catch (err) {
-      console.error('Google Sign-In failed:', err);
       throw err;
     }
   }, []);
@@ -254,12 +131,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading,
     login,
-    loginWithMfa,
     register,
-    loginWithGoogle,
     logout,
     isAuthenticated: !!user,
-  }), [user, isLoading, login, loginWithMfa, register, loginWithGoogle, logout]);
+  }), [user, isLoading, login, register, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

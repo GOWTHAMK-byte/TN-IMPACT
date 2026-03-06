@@ -168,6 +168,9 @@ export const apiClient = {
     getUserById: (id: string) =>
         api(`/api/users/${id}`),
 
+    updateUser: (id: string, data: { projectId?: string | null; managerId?: string | null; role?: string; department?: string; title?: string }) =>
+        api(`/api/users/${id}`, { method: "PATCH", body: data }),
+
     // Leaves
     getLeaves: () =>
         api("/api/leaves"),
@@ -218,15 +221,18 @@ export const apiClient = {
     search: (query: string) =>
         api(`/api/search?q=${encodeURIComponent(query)}`),
 
-    // Google SSO
-    googleLogin: (idToken: string) =>
-        api("/api/auth/google", { method: "POST", body: { idToken }, skipAuth: true }),
-
     // Register
     register: (name: string, email: string, password: string, role: string) =>
         api("/api/auth/register", { method: "POST", body: { name, email, password, role }, skipAuth: true }),
 
-    // MFA
-    loginWithMfa: (mfaToken: string, code: string) =>
-        api("/api/auth/login/mfa", { method: "POST", body: { mfaToken, code }, skipAuth: true }),
+
+    // Projects
+    getProjects: () =>
+        api("/api/projects"),
+
+    createProject: (data: { name: string; description?: string; managerId?: string }) =>
+        api("/api/projects", { method: "POST", body: data }),
+
+    updateProject: (id: string, data: { name?: string; description?: string; managerId?: string }) =>
+        api(`/api/projects/${id}`, { method: "PATCH", body: data }),
 };

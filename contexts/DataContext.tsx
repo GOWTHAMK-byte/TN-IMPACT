@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 import { useAuth } from './AuthContext';
+import { Project } from '@shared/schema';
 
 export type LeaveStatus = 'Draft' | 'Submitted' | 'Pending_Manager' | 'Pending_HR' | 'Approved' | 'Rejected' | 'Escalated';
 export type LeaveType = 'Annual' | 'Sick' | 'Personal' | 'Maternity' | 'Paternity' | 'Bereavement';
@@ -18,6 +19,7 @@ export interface LeaveRequest {
   employeeId: string;
   employeeName: string;
   managerId?: string;
+  projectId?: string;
   leaveType: LeaveType;
   startDate: string;
   endDate: string;
@@ -49,6 +51,7 @@ export interface Ticket {
   status: TicketStatus;
   createdBy: string;
   createdByName: string;
+  projectId?: string;
   assignedTo?: string;
   assignedToName?: string;
   comments: TicketComment[];
@@ -70,6 +73,7 @@ export interface Expense {
   status: ExpenseStatus;
   submittedBy: string;
   submittedByName: string;
+  projectId?: string;
   approvalHistory: ApprovalEntry[];
   createdAt: string;
   updatedAt: string;
@@ -112,6 +116,9 @@ interface DataContextValue {
   unreadCount: number;
   refreshData: () => Promise<void>;
   isLoading: boolean;
+  projects: Project[];
+  createProject: (data: { name: string; description?: string; managerId?: string }) => Promise<Project>;
+  updateProject: (id: string, data: { name?: string; description?: string; managerId?: string }) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -123,6 +130,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance>({ annual: 15, sick: 8, personal: 3 });
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -133,12 +141,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      const [leavesData, ticketsData, expensesData, notificationsData, balanceData] = await Promise.all([
+      const [leavesData, ticketsData, expensesData, notificationsData, balanceData, projectsData] = await Promise.all([
         apiClient.getLeaves().catch(() => []),
         apiClient.getTickets().catch(() => []),
         apiClient.getExpenses().catch(() => []),
         apiClient.getNotifications().catch(() => []),
         apiClient.getLeaveBalance().catch(() => ({ annual: 15, sick: 8, personal: 3 })),
+        apiClient.getProjects().catch(() => []),
       ]);
 
       setLeaves(leavesData);
@@ -146,6 +155,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setExpenses(expensesData);
       setNotifications(notificationsData);
       setLeaveBalance(balanceData);
+      setProjects(projectsData);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -231,16 +241,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setNotifications(updatedNotifications);
   }, [notifications]);
 
+  const refreshProjects = useCallback(async () => {
+    const updatedProjects = await apiClient.getProjects().catch(() => projects);
+    setProjects(updatedProjects);
+  }, [projects]);
+
+  const createProject = useCallback(async (data: { name: string; description?: string; managerId?: string }) => {
+    const newProject = await apiClient.createProject(data);
+    refreshProjects();
+    return newProject;
+  }, [refreshProjects]);
+
+  const updateProject = useCallback(async (id: string, data: { name?: string; description?: string; managerId?: string }) => {
+    await apiClient.updateProject(id, data);
+    refreshProjects();
+  }, [refreshProjects]);
+
   const unreadCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
 
   const value = useMemo(() => ({
-    leaves, tickets, expenses, notifications, leaveBalance,
+    leaves, tickets, expenses, notifications, leaveBalance, projects,
     createLeave, updateLeaveStatus,
     createTicket, addTicketComment, updateTicketStatus,
     createExpense, updateExpenseStatus,
+    createProject, updateProject,
     markNotificationRead, addNotification,
     unreadCount, refreshData: loadData, isLoading,
-  }), [leaves, tickets, expenses, notifications, leaveBalance, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
+  }), [leaves, tickets, expenses, notifications, leaveBalance, projects, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, createProject, updateProject, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

@@ -12,20 +12,30 @@ router.post("/", authenticateToken, validate(createLeaveSchema), async (req, res
         const user = await storage.getUserById(req.user!.id);
         if (!user) return res.status(404).json({ message: "User not found" });
 
+        // Determine who gets notified: the specific Project Manager, fallback to default manager
+        let targetManagerId = user.managerId;
+        if (user.projectId) {
+            const project = await storage.getProjectById(user.projectId);
+            if (project && project.managerId) {
+                targetManagerId = project.managerId;
+            }
+        }
+
         const leave = await storage.createLeave({
             employeeId: req.user!.id,
             managerId: user.managerId || undefined,
+            projectId: user.projectId || undefined,
             leaveType: req.body.leaveType,
             startDate: req.body.startDate,
             endDate: req.body.endDate,
             reason: req.body.reason,
-            status: user.managerId ? "Pending_Manager" : "Pending_HR",
+            status: targetManagerId ? "Pending_Manager" : "Pending_HR",
         });
 
         // Notify manager if exists
-        if (user.managerId) {
+        if (targetManagerId) {
             await storage.createNotification({
-                userId: user.managerId,
+                userId: targetManagerId,
                 title: "Leave Request",
                 body: `${user.name} has submitted a leave request`,
                 type: "action_required",
@@ -106,7 +116,7 @@ router.get("/balance", authenticateToken, async (req, res) => {
 // GET /api/leaves/:id
 router.get("/:id", authenticateToken, async (req, res) => {
     try {
-        const leave = await storage.getLeaveById(req.params.id);
+        const leave = await storage.getLeaveById(req.params.id as string);
         if (!leave) return res.status(404).json({ message: "Leave not found" });
 
         const employee = await storage.getUserById(leave.employeeId);
@@ -137,7 +147,7 @@ router.patch(
     validate(approvalActionSchema),
     async (req, res) => {
         try {
-            const leave = await storage.getLeaveById(req.params.id);
+            const leave = await storage.getLeaveById(req.params.id as string);
             if (!leave) return res.status(404).json({ message: "Leave not found" });
 
             const { action, comment } = req.body;

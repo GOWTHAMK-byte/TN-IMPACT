@@ -15,7 +15,7 @@ const P = Pressable as any;
 export default function TicketsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { tickets, updateTicketStatus, addTicketComment, refreshData } = useData();
+  const { tickets, updateTicketStatus, addTicketComment, refreshData, projects } = useData();
   const [filter, setFilter] = useState<FilterType>('All');
   const [refreshing, setRefreshing] = useState(false);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
@@ -69,89 +69,98 @@ export default function TicketsScreen() {
 
   const isExpanded = (id: string) => expandedTicket === id;
 
-  const renderTicket = ({ item }: { item: Ticket }) => (
-    <Card
-      style={styles.ticketCard}
-      onPress={() => {
-        Haptics.selectionAsync();
-        setExpandedTicket(isExpanded(item.id) ? null : item.id);
-      }}
-    >
-      <View style={styles.ticketHeader}>
-        <View style={styles.ticketTitleRow}>
-          <PriorityIndicator priority={item.priority} />
-          <Text style={styles.ticketTitle} numberOfLines={isExpanded(item.id) ? undefined : 1}>{item.title}</Text>
-        </View>
-        <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
-      </View>
-
-      <View style={styles.ticketMeta}>
-        <View style={styles.metaChip}><Feather name="tag" size={11} color={Colors.textSecondary} /><Text style={styles.metaText}>{item.category}</Text></View>
-        <View style={[styles.metaChip, { backgroundColor: getSLAColor(item.slaDeadline) + '30' }]}>
-          <Feather name="clock" size={11} color={getSLAColor(item.slaDeadline)} />
-          <Text style={[styles.metaText, { color: getSLAColor(item.slaDeadline) }]}>{formatSLA(item.slaDeadline)}</Text>
-        </View>
-      </View>
-
-      {isExpanded(item.id) && (
-        <View style={styles.expandedContent}>
-          <Text style={styles.descLabel}>Description</Text>
-          <Text style={styles.descText}>{item.description}</Text>
-
-          {item.assignedToName && (
-            <View style={styles.assignedRow}>
-              <Feather name="user" size={13} color={Colors.textSecondary} />
-              <Text style={styles.assignedText}>Assigned to {item.assignedToName}</Text>
-            </View>
-          )}
-
-          {isITAdmin && !['Resolved', 'Closed'].includes(item.status) && (
-            <View style={styles.statusActions}>
-              {item.status === 'Open' && (
-                <P onPress={() => handleStatusChange(item.id, 'In_Progress')} style={[styles.statusBtn, { backgroundColor: Colors.accent }]}>
-                  <Text style={styles.statusBtnText}>Start Work</Text>
-                </P>
-              )}
-              {item.status === 'In_Progress' && (
-                <P onPress={() => handleStatusChange(item.id, 'Resolved')} style={[styles.statusBtn, { backgroundColor: Colors.success }]}>
-                  <Text style={styles.statusBtnText}>Resolve</Text>
-                </P>
-              )}
-            </View>
-          )}
-
-          {item.comments.length > 0 && (
-            <View style={styles.commentsSection}>
-              <Text style={styles.commentsTitle}>Updates ({item.comments.length})</Text>
-              {item.comments.map(c => (
-                <View key={c.id} style={styles.commentItem}>
-                  <Text style={styles.commentAuthor}>{c.authorName}</Text>
-                  <Text style={styles.commentContent}>{c.content}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.addCommentRow}>
-            <TextInput
-              value={commentText}
-              onChangeText={setCommentText}
-              placeholder="Type update..."
-              placeholderTextColor={Colors.textTertiary}
-              style={styles.commentInput}
-            />
-            <P
-              onPress={() => handleAddComment(item.id)}
-              disabled={!commentText.trim()}
-              style={({ pressed }: any) => [styles.sendBtn, pressed && { opacity: 0.7 }, !commentText.trim() && { opacity: 0.3 }]}
-            >
-              <Ionicons name="send" size={18} color={Colors.accent} />
-            </P>
+  const renderTicket = ({ item }: { item: Ticket }) => {
+    const project = projects.find(p => p.id === item.projectId);
+    return (
+      <Card
+        style={styles.ticketCard}
+        onPress={() => {
+          Haptics.selectionAsync();
+          setExpandedTicket(isExpanded(item.id) ? null : item.id);
+        }}
+      >
+        <View style={styles.ticketHeader}>
+          <View style={styles.ticketTitleRow}>
+            <PriorityIndicator priority={item.priority} />
+            <Text style={styles.ticketTitle} numberOfLines={isExpanded(item.id) ? undefined : 1}>{item.title}</Text>
           </View>
+          <StatusBadge label={formatStatus(item.status)} type={getStatusType(item.status)} />
         </View>
-      )}
-    </Card>
-  );
+
+        <View style={styles.ticketMeta}>
+          <View style={styles.metaChip}><Feather name="tag" size={11} color={Colors.textSecondary} /><Text style={styles.metaText}>{item.category}</Text></View>
+          <View style={[styles.metaChip, { backgroundColor: getSLAColor(item.slaDeadline) + '30' }]}>
+            <Feather name="clock" size={11} color={getSLAColor(item.slaDeadline)} />
+            <Text style={[styles.metaText, { color: getSLAColor(item.slaDeadline) }]}>{formatSLA(item.slaDeadline)}</Text>
+          </View>
+          {project && (
+            <View style={[styles.metaChip, { backgroundColor: Colors.accent + '20' }]}>
+              <Feather name="briefcase" size={11} color={Colors.accent} />
+              <Text style={[styles.metaText, { color: Colors.accent }]}>{project.name}</Text>
+            </View>
+          )}
+        </View>
+
+        {isExpanded(item.id) && (
+          <View style={styles.expandedContent}>
+            <Text style={styles.descLabel}>Description</Text>
+            <Text style={styles.descText}>{item.description}</Text>
+
+            {item.assignedToName && (
+              <View style={styles.assignedRow}>
+                <Feather name="user" size={13} color={Colors.textSecondary} />
+                <Text style={styles.assignedText}>Assigned to {item.assignedToName}</Text>
+              </View>
+            )}
+
+            {isITAdmin && !['Resolved', 'Closed'].includes(item.status) && (
+              <View style={styles.statusActions}>
+                {item.status === 'Open' && (
+                  <P onPress={() => handleStatusChange(item.id, 'In_Progress')} style={[styles.statusBtn, { backgroundColor: Colors.accent }]}>
+                    <Text style={styles.statusBtnText}>Start Work</Text>
+                  </P>
+                )}
+                {item.status === 'In_Progress' && (
+                  <P onPress={() => handleStatusChange(item.id, 'Resolved')} style={[styles.statusBtn, { backgroundColor: Colors.success }]}>
+                    <Text style={styles.statusBtnText}>Resolve</Text>
+                  </P>
+                )}
+              </View>
+            )}
+
+            {item.comments.length > 0 && (
+              <View style={styles.commentsSection}>
+                <Text style={styles.commentsTitle}>Updates ({item.comments.length})</Text>
+                {item.comments.map(c => (
+                  <View key={c.id} style={styles.commentItem}>
+                    <Text style={styles.commentAuthor}>{c.authorName}</Text>
+                    <Text style={styles.commentContent}>{c.content}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.addCommentRow}>
+              <TextInput
+                value={commentText}
+                onChangeText={setCommentText}
+                placeholder="Type update..."
+                placeholderTextColor={Colors.textTertiary}
+                style={styles.commentInput}
+              />
+              <P
+                onPress={() => handleAddComment(item.id)}
+                disabled={!commentText.trim()}
+                style={({ pressed }: any) => [styles.sendBtn, pressed && { opacity: 0.7 }, !commentText.trim() && { opacity: 0.3 }]}
+              >
+                <Ionicons name="send" size={18} color={Colors.accent} />
+              </P>
+            </View>
+          </View>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <View style={styles.container}>

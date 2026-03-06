@@ -7,8 +7,4 @@ export const config = {
     jwtRefreshExpiresIn: 604800 as number, // 7 days in seconds
     port: parseInt(process.env.PORT || "5000", 10),
     databaseUrl: process.env.DATABASE_URL || "",
-    googleClientId: process.env.GOOGLE_CLIENT_ID || "",
-    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    gmailUser: process.env.GMAIL_USER || "",
-    gmailAppPassword: process.env.GMAIL_APP_PASSWORD || "",
 };

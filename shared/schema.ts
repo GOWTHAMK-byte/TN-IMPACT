@@ -94,6 +94,18 @@ export const departments = pgTable("departments", {
   description: text("description"),
 });
 
+export const projects = pgTable("projects", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  managerId: varchar("manager_id")
+    .references((): any => users.id), // The MANAGER who oversees this project
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const users = pgTable("users", {
   id: varchar("id")
     .primaryKey()
@@ -107,11 +119,9 @@ export const users = pgTable("users", {
   title: text("title").default(""),
   phone: text("phone").default(""),
   avatar: text("avatar").default(""),
-  managerId: varchar("manager_id").references((): any => users.id),
-  ssoProvider: text("sso_provider"),
-  ssoProviderId: text("sso_provider_id"),
-  otpCode: text("otp_code"),
-  otpExpiresAt: timestamp("otp_expires_at"),
+  managerId: varchar("manager_id").references((): any => users.id), // Legacy/default direct manager
+  projectId: varchar("project_id").references((): any => projects.id), // Current Assigned Project
+
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -150,7 +160,8 @@ export const leaves = pgTable("leaves", {
   employeeId: varchar("employee_id")
     .notNull()
     .references(() => users.id),
-  managerId: varchar("manager_id").references(() => users.id),
+  managerId: varchar("manager_id").references(() => users.id), // Direct/Legacy Manager
+  projectId: varchar("project_id").references(() => projects.id), // The project this pertains to
   leaveType: leaveTypeEnum("leave_type").notNull(),
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
@@ -187,6 +198,7 @@ export const tickets = pgTable("tickets", {
   createdBy: varchar("created_by")
     .notNull()
     .references(() => users.id),
+  projectId: varchar("project_id").references(() => projects.id),
   assignedTo: varchar("assigned_to").references(() => users.id),
   slaDeadline: timestamp("sla_deadline"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -221,6 +233,7 @@ export const expenses = pgTable("expenses", {
   submittedBy: varchar("submitted_by")
     .notNull()
     .references(() => users.id),
+  projectId: varchar("project_id").references(() => projects.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -292,15 +305,7 @@ export const registerSchema = z.object({
   role: z.enum(["EMPLOYEE", "MANAGER", "HR_ADMIN", "IT_ADMIN", "FINANCE_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
 });
 
-export const mfaLoginSchema = z.object({
-  mfaToken: z.string().min(1),
-  code: z.string().length(6),
-});
 
-export const mfaVerifySchema = z.object({
-  code: z.string().length(6),
-  secret: z.string().min(1),
-});
 
 export const createLeaveSchema = z.object({
   leaveType: z.enum(["Annual", "Sick", "Personal", "Maternity", "Paternity", "Bereavement"]),
@@ -329,11 +334,19 @@ export const approvalActionSchema = z.object({
   comment: z.string().default(""),
 });
 
+export const insertProjectSchema = createInsertSchema(projects).pick({
+  name: true,
+  description: true,
+  managerId: true,
+});
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type UserRole = "EMPLOYEE" | "MANAGER" | "HR_ADMIN" | "IT_ADMIN" | "FINANCE_ADMIN" | "SUPER_ADMIN";
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type LeaveRequest = typeof leaves.$inferSelect;
 export type Ticket = typeof tickets.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
