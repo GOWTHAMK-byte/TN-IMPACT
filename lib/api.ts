@@ -235,4 +235,20 @@ export const apiClient = {
 
     updateProject: (id: string, data: { name?: string; description?: string; managerId?: string }) =>
         api(`/api/projects/${id}`, { method: "PATCH", body: data }),
+
+    // Todos
+    getTodos: () =>
+        api("/api/todos"),
+
+    createTodo: (data: { title: string; description?: string; priority?: string; category?: string; dueDate?: string }) =>
+        api("/api/todos", { method: "POST", body: data }),
+
+    updateTodo: (id: string, data: { title?: string; description?: string; priority?: string; category?: string; dueDate?: string; isCompleted?: boolean }) =>
+        api(`/api/todos/${id}`, { method: "PATCH", body: data }),
+
+    toggleTodo: (id: string) =>
+        api(`/api/todos/${id}/toggle`, { method: "PATCH" }),
+
+    deleteTodo: (id: string) =>
+        api(`/api/todos/${id}`, { method: "DELETE" }),
 };

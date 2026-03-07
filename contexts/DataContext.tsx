@@ -98,6 +98,22 @@ export interface LeaveBalance {
   personal: number;
 }
 
+export type TodoPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type TodoCategory = 'Work' | 'Personal' | 'Meeting' | 'Deadline' | 'Other';
+
+export interface TodoItem {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  priority: TodoPriority;
+  category: TodoCategory;
+  isCompleted: boolean;
+  dueDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface DataContextValue {
   leaves: LeaveRequest[];
   tickets: Ticket[];
@@ -119,6 +135,11 @@ interface DataContextValue {
   projects: Project[];
   createProject: (data: { name: string; description?: string; managerId?: string }) => Promise<Project>;
   updateProject: (id: string, data: { name?: string; description?: string; managerId?: string }) => Promise<void>;
+  todos: TodoItem[];
+  createTodo: (data: { title: string; description?: string; priority?: string; category?: string; dueDate?: string }) => Promise<TodoItem>;
+  toggleTodo: (id: string) => Promise<void>;
+  deleteTodo: (id: string) => Promise<void>;
+  refreshTodos: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -131,6 +152,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance>({ annual: 15, sick: 8, personal: 3 });
   const [projects, setProjects] = useState<Project[]>([]);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -141,13 +163,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      const [leavesData, ticketsData, expensesData, notificationsData, balanceData, projectsData] = await Promise.all([
+      const [leavesData, ticketsData, expensesData, notificationsData, balanceData, projectsData, todosData] = await Promise.all([
         apiClient.getLeaves().catch(() => []),
         apiClient.getTickets().catch(() => []),
         apiClient.getExpenses().catch(() => []),
         apiClient.getNotifications().catch(() => []),
         apiClient.getLeaveBalance().catch(() => ({ annual: 15, sick: 8, personal: 3 })),
         apiClient.getProjects().catch(() => []),
+        apiClient.getTodos().catch(() => []),
       ]);
 
       setLeaves(leavesData);
@@ -156,6 +179,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setNotifications(notificationsData);
       setLeaveBalance(balanceData);
       setProjects(projectsData);
+      setTodos(todosData);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -257,17 +281,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     refreshProjects();
   }, [refreshProjects]);
 
+  const refreshTodos = useCallback(async () => {
+    const updatedTodos = await apiClient.getTodos().catch(() => todos);
+    setTodos(updatedTodos);
+  }, [todos]);
+
+  const createTodo = useCallback(async (data: { title: string; description?: string; priority?: string; category?: string; dueDate?: string }) => {
+    const newTodo = await apiClient.createTodo(data);
+    await refreshTodos();
+    return newTodo;
+  }, [refreshTodos]);
+
+  const toggleTodo = useCallback(async (id: string) => {
+    await apiClient.toggleTodo(id);
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, isCompleted: !t.isCompleted } : t));
+  }, []);
+
+  const deleteTodo = useCallback(async (id: string) => {
+    await apiClient.deleteTodo(id);
+    setTodos(prev => prev.filter(t => t.id !== id));
+  }, []);
+
   const unreadCount = useMemo(() => notifications.filter(n => !n.isRead).length, [notifications]);
 
   const value = useMemo(() => ({
-    leaves, tickets, expenses, notifications, leaveBalance, projects,
+    leaves, tickets, expenses, notifications, leaveBalance, projects, todos,
     createLeave, updateLeaveStatus,
     createTicket, addTicketComment, updateTicketStatus,
     createExpense, updateExpenseStatus,
     createProject, updateProject,
+    createTodo, toggleTodo, deleteTodo, refreshTodos,
     markNotificationRead, addNotification,
     unreadCount, refreshData: loadData, isLoading,
-  }), [leaves, tickets, expenses, notifications, leaveBalance, projects, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, createProject, updateProject, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
+  }), [leaves, tickets, expenses, notifications, leaveBalance, projects, todos, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, createProject, updateProject, createTodo, toggleTodo, deleteTodo, refreshTodos, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

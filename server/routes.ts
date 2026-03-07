@@ -9,6 +9,7 @@ import expenseRoutes from "./routes/expenses";
 import notificationRoutes from "./routes/notifications";
 import searchRoutes from "./routes/search";
 import projectsRoutes from "./routes/projects";
+import todoRoutes from "./routes/todos";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API routes
@@ -20,6 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/projects", projectsRoutes);
+  app.use("/api/todos", todoRoutes);
 
   const httpServer = createServer(app);
 

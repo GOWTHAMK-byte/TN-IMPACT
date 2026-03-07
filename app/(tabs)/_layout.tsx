@@ -67,6 +67,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="todos"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="more"
         options={{
           title: 'Menu',

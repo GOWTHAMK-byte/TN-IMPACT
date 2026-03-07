@@ -84,6 +84,21 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "escalation",
 ]);
 
+export const todoPriorityEnum = pgEnum("todo_priority", [
+  "Low",
+  "Medium",
+  "High",
+  "Urgent",
+]);
+
+export const todoCategoryEnum = pgEnum("todo_category", [
+  "Work",
+  "Personal",
+  "Meeting",
+  "Deadline",
+  "Other",
+]);
+
 // ── Tables ─────────────────────────────────────────────────────────────────
 
 export const departments = pgTable("departments", {
@@ -281,6 +296,23 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const todos = pgTable("todos", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description").default(""),
+  priority: todoPriorityEnum("priority").notNull().default("Medium"),
+  category: todoCategoryEnum("category").notNull().default("Work"),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  dueDate: text("due_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ── Zod Schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -340,6 +372,14 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
   managerId: true,
 });
 
+export const createTodoSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().default(""),
+  priority: z.enum(["Low", "Medium", "High", "Urgent"]).default("Medium"),
+  category: z.enum(["Work", "Personal", "Meeting", "Deadline", "Other"]).default("Work"),
+  dueDate: z.string().optional(),
+});
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type UserRole = "EMPLOYEE" | "MANAGER" | "HR_ADMIN" | "IT_ADMIN" | "FINANCE_ADMIN" | "SUPER_ADMIN";
@@ -351,3 +391,4 @@ export type LeaveRequest = typeof leaves.$inferSelect;
 export type Ticket = typeof tickets.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type Todo = typeof todos.$inferSelect;
