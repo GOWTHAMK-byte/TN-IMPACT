@@ -17,7 +17,7 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import { StatusBar } from "expo-status-bar";
-import Colors from "@/components/constants/colors";
+import Colors from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
 
