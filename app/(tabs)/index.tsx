@@ -26,6 +26,7 @@ const ALL_ACTIONS: Action[] = [
   { id: 'ticket', icon: 'headphones', label: 'Support', color: '#34D399', route: '/new-ticket' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
   { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
+  { id: 'tasks', icon: 'check-circle', label: 'Tasks', color: '#06B6D4', route: '/(tabs)/todos' },
   { id: 'hr', icon: 'heart', label: 'HR Hub', color: '#FB7185', route: '/(tabs)/hr', roles: ['HR_ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
   { id: 'finance', icon: 'dollar-sign', label: 'Finance', color: '#FBBF24', route: '/(tabs)/expenses', roles: ['FINANCE_ADMIN', 'SUPER_ADMIN'] },
 ];
@@ -43,7 +44,7 @@ export default function DashboardScreen() {
   }, [refreshData]);
 
   const roleActions = useMemo(() => {
-    return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 4);
+    return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 5);
   }, [user?.role]);
 
   const pendingLeaves = leaves.filter(l => l.status.startsWith('Pending'));

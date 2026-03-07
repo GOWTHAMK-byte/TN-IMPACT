@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   users, leaves, leaveApprovals, leaveBalances,
   tickets, ticketComments, expenses, expenseApprovals,
-  notifications, auditLogs, refreshTokens, projects,
+  notifications, auditLogs, refreshTokens, projects, todos,
 } from "@shared/schema";
 import type { UserRole, Project } from "@shared/schema";
 import { eq, and, or, ilike, desc, sql, inArray } from "drizzle-orm";
@@ -396,4 +396,36 @@ export async function searchAll(query: string) {
     ).limit(10),
   ]);
   return { users: userResults, tickets: ticketResults, leaves: leaveResults };
+}
+
+// ── Todos ──────────────────────────────────────────────────────────────────
+
+export async function createTodo(data: {
+  userId: string;
+  title: string;
+  description?: string;
+  priority?: any;
+  category?: any;
+  dueDate?: string;
+}) {
+  const [todo] = await db.insert(todos).values(data).returning();
+  return todo;
+}
+
+export async function getTodos(userId: string) {
+  return db.select().from(todos).where(eq(todos.userId, userId)).orderBy(desc(todos.createdAt));
+}
+
+export async function getTodoById(id: string) {
+  const [todo] = await db.select().from(todos).where(eq(todos.id, id)).limit(1);
+  return todo || null;
+}
+
+export async function updateTodo(id: string, data: Partial<typeof todos.$inferInsert>) {
+  const [todo] = await db.update(todos).set({ ...data, updatedAt: new Date() }).where(eq(todos.id, id)).returning();
+  return todo;
+}
+
+export async function deleteTodo(id: string) {
+  await db.delete(todos).where(eq(todos.id, id));
 }
