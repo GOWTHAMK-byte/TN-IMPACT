@@ -52,11 +52,11 @@ export default function TodosScreen() {
     const [showCompleted, setShowCompleted] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
 
-    // New todo form state
     const [newTitle, setNewTitle] = useState('');
     const [newDescription, setNewDescription] = useState('');
     const [newPriority, setNewPriority] = useState<TodoPriority>('Medium');
     const [newCategory, setNewCategory] = useState<TodoCategory>('Work');
+    const [newDueDate, setNewDueDate] = useState('');
 
     const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -119,17 +119,19 @@ export default function TodosScreen() {
                 description: newDescription.trim(),
                 priority: newPriority,
                 category: newCategory,
+                dueDate: newDueDate ? newDueDate : undefined,
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setNewTitle('');
             setNewDescription('');
             setNewPriority('Medium');
             setNewCategory('Work');
+            setNewDueDate('');
             setModalVisible(false);
         } catch (err) {
             Alert.alert('Error', 'Failed to create task');
         }
-    }, [newTitle, newDescription, newPriority, newCategory, createTodo]);
+    }, [newTitle, newDescription, newPriority, newCategory, newDueDate, createTodo]);
 
     const renderTodoCard = (todo: TodoItem, index: number) => {
         const priorityColor = getPriorityColor(todo.priority);
@@ -189,7 +191,9 @@ export default function TodosScreen() {
                             {todo.dueDate && (
                                 <View style={styles.dueDateChip}>
                                     <Feather name="calendar" size={10} color={Colors.textTertiary} />
-                                    <Text style={styles.dueDateText}>{todo.dueDate}</Text>
+                                    <Text style={styles.dueDateText}>
+                                        {new Date(todo.dueDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                    </Text>
                                 </View>
                             )}
                         </View>
@@ -337,6 +341,16 @@ export default function TodosScreen() {
                             onChangeText={setNewDescription}
                             multiline
                             numberOfLines={3}
+                        />
+
+                        {/* Due Date String Input (Web Datetime Fallback) */}
+                        <Text style={styles.modalLabel}>Due Date & Time (Optional)</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="YYYY-MM-DD HH:MM (e.g. 2026-03-07 14:00)"
+                            placeholderTextColor={Colors.textTertiary}
+                            value={newDueDate}
+                            onChangeText={setNewDueDate}
                         />
 
                         {/* Priority Picker */}

@@ -24,6 +24,7 @@ interface Action {
 const ALL_ACTIONS: Action[] = [
   { id: 'leave', icon: 'calendar', label: 'Leave', color: '#38BDF8', route: '/new-leave' },
   { id: 'ticket', icon: 'headphones', label: 'Support', color: '#34D399', route: '/new-ticket' },
+  { id: 'holidays', icon: 'calendar', label: 'Holidays', color: '#A78BFA', route: '/holidays' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
   { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
   { id: 'tasks', icon: 'check-circle', label: 'Tasks', color: '#06B6D4', route: '/(tabs)/todos' },
