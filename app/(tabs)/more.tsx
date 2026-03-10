@@ -69,7 +69,10 @@ export default function MoreScreen() {
         </Card>
 
         <View style={styles.menuSection}>
-          {[...MENU_ITEMS, ...(user?.role === 'SUPER_ADMIN' || user?.role === 'HR_ADMIN' ? [{ id: 'projects', icon: 'briefcase', label: 'Manage Projects', route: '/admin-projects', color: '#8B5CF6' }] : [])].map(item => (
+          {[...MENU_ITEMS,
+          { id: 'team', icon: 'users', label: user?.role === 'MANAGER' ? 'Manage Team' : 'My Team', route: '/manage-team', color: '#F59E0B' },
+          ...(user?.role === 'SUPER_ADMIN' || user?.role === 'HR_ADMIN' ? [{ id: 'projects', icon: 'briefcase', label: 'Manage Projects', route: '/admin-projects', color: '#8B5CF6' }] : []),
+          ].map(item => (
             <Pressable
               key={item.id}
               onPress={() => { Haptics.selectionAsync(); router.push(item.route as any); }}

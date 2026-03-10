@@ -97,6 +97,10 @@ function RootLayoutNav() {
           name="profile"
           options={{ title: "Profile", headerShown: true }}
         />
+        <Stack.Screen
+          name="manage-team"
+          options={{ title: "Manage Team", headerShown: true }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

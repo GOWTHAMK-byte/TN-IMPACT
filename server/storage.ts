@@ -429,3 +429,31 @@ export async function updateTodo(id: string, data: Partial<typeof todos.$inferIn
 export async function deleteTodo(id: string) {
   await db.delete(todos).where(eq(todos.id, id));
 }
+
+// ── Team Management ────────────────────────────────────────────────────────
+
+export async function getTeamMembers(managerId: string) {
+  return db
+    .select()
+    .from(users)
+    .where(and(eq(users.managerId, managerId), eq(users.isActive, true)))
+    .orderBy(users.name);
+}
+
+export async function addTeamMember(managerId: string, employeeId: string) {
+  const [user] = await db
+    .update(users)
+    .set({ managerId, updatedAt: new Date() })
+    .where(eq(users.id, employeeId))
+    .returning();
+  return user;
+}
+
+export async function removeTeamMember(employeeId: string) {
+  const [user] = await db
+    .update(users)
+    .set({ managerId: null, updatedAt: new Date() })
+    .where(eq(users.id, employeeId))
+    .returning();
+  return user;
+}

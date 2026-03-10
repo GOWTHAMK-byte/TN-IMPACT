@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Redirect } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,8 @@ import Colors from '@/constants/colors';
 import { useAuth, getRoleLabel, getRoleBadgeColor, UserRole } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, Avatar, SectionHeader } from '@/components/ui';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { apiClient } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
 const P = Pressable as any;
@@ -21,10 +22,20 @@ interface Action {
   roles?: UserRole[];
 }
 
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+  title: string;
+  avatar: string;
+}
+
 const ALL_ACTIONS: Action[] = [
   { id: 'leave', icon: 'calendar', label: 'Leave', color: '#38BDF8', route: '/new-leave' },
   { id: 'ticket', icon: 'headphones', label: 'Support', color: '#34D399', route: '/new-ticket' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
+  { id: 'myteam', icon: 'users', label: 'My Team', color: '#F59E0B', route: '/manage-team' },
   { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
   { id: 'tasks', icon: 'check-circle', label: 'Tasks', color: '#06B6D4', route: '/(tabs)/todos' },
   { id: 'hr', icon: 'heart', label: 'HR Hub', color: '#FB7185', route: '/(tabs)/hr', roles: ['HR_ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
@@ -36,12 +47,31 @@ export default function DashboardScreen() {
   const { user, isAuthenticated } = useAuth();
   const { leaves, tickets, expenses, leaveBalance, unreadCount, refreshData } = useData();
   const [refreshing, setRefreshing] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+
+  const fetchTeam = useCallback(async () => {
+    if (!user) return;
+    try {
+      setTeamLoading(true);
+      const data = await apiClient.getMyTeam();
+      setTeamMembers(data);
+    } catch (err) {
+      console.error('Failed to load team:', err);
+    } finally {
+      setTeamLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchTeam();
+  }, [fetchTeam]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshData();
+    await Promise.all([refreshData(), fetchTeam()]);
     setRefreshing(false);
-  }, [refreshData]);
+  }, [refreshData, fetchTeam]);
 
   const roleActions = useMemo(() => {
     return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 5);
@@ -179,6 +209,52 @@ export default function DashboardScreen() {
             ))}
           </View>
 
+          {/* My Team Section */}
+          {teamMembers.length > 0 && (
+            <>
+              <SectionHeader
+                title="My Team"
+                actionLabel={user?.role === 'MANAGER' ? 'Manage' : undefined}
+                onAction={user?.role === 'MANAGER' ? () => router.push('/manage-team' as any) : undefined}
+              />
+              <Card style={styles.teamCard} delay={900}>
+                {teamLoading ? (
+                  <ActivityIndicator size="small" color={Colors.accent} />
+                ) : (
+                  <View style={styles.teamGrid}>
+                    {teamMembers.slice(0, 6).map((member) => (
+                      <View key={member.id} style={styles.teamMember}>
+                        <Avatar
+                          initials={member.avatar || member.name.substring(0, 2).toUpperCase()}
+                          size={40}
+                          color={getRoleBadgeColor(member.role as any)}
+                        />
+                        <Text style={styles.teamMemberName} numberOfLines={1}>
+                          {member.name.split(' ')[0]}
+                        </Text>
+                        <Text style={styles.teamMemberRole} numberOfLines={1}>
+                          {member.title || member.department}
+                        </Text>
+                      </View>
+                    ))}
+                    {teamMembers.length > 6 && (
+                      <Pressable
+                        style={styles.teamMember}
+                        onPress={() => router.push(user?.role === 'MANAGER' ? '/manage-team' as any : '/directory' as any)}
+                      >
+                        <View style={styles.teamMoreCircle}>
+                          <Text style={styles.teamMoreText}>+{teamMembers.length - 6}</Text>
+                        </View>
+                        <Text style={styles.teamMemberName}>View All</Text>
+                        <Text style={styles.teamMemberRole}>{' '}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </Card>
+            </>
+          )}
+
           {leaves.length > 0 && (
             <>
               <SectionHeader title="Recent Activity" actionLabel="History" onAction={() => router.push('/(tabs)/hr')} />
@@ -262,4 +338,11 @@ const styles = StyleSheet.create({
   activityInfo: { flex: 1 },
   activityTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
   activityMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  teamCard: { padding: 16 },
+  teamGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' },
+  teamMember: { alignItems: 'center', width: 70 },
+  teamMemberName: { fontSize: 11, fontWeight: '600', color: Colors.text, marginTop: 6, textAlign: 'center' },
+  teamMemberRole: { fontSize: 9, color: Colors.textSecondary, marginTop: 1, textAlign: 'center' },
+  teamMoreCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  teamMoreText: { fontSize: 13, fontWeight: '700', color: Colors.accent },
 });

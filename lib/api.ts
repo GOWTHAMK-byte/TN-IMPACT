@@ -251,4 +251,20 @@ export const apiClient = {
 
     deleteTodo: (id: string) =>
         api(`/api/todos/${id}`, { method: "DELETE" }),
+
+    // Team Management
+    getTeamMembers: () =>
+        api("/api/team"),
+
+    getMyTeam: () =>
+        api("/api/team/my-team"),
+
+    searchEmployeesForTeam: (query: string) =>
+        api(`/api/team/search?q=${encodeURIComponent(query)}`),
+
+    addTeamMember: (employeeId: string) =>
+        api("/api/team/add", { method: "POST", body: { employeeId } }),
+
+    removeTeamMember: (employeeId: string) =>
+        api(`/api/team/${employeeId}`, { method: "DELETE" }),
 };
