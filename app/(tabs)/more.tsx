@@ -22,17 +22,23 @@ export default function MoreScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          await logout();
+    if (Platform.OS === 'web') {
+      if (confirm('Sign out of your account?')) {
+        logout();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            logout();
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   return (
