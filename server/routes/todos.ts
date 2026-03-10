@@ -26,7 +26,7 @@ router.post("/", validate(createTodoSchema), async (req: Request, res: Response)
             description: req.body.description || "",
             priority: req.body.priority || "Medium",
             category: req.body.category || "Work",
-            dueDate: req.body.dueDate,
+            dueDate: req.body.dueDate ? new Date(req.body.dueDate) : undefined,
         });
         res.status(201).json(todo);
     } catch (err) {
@@ -42,12 +42,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
         if (todo.userId !== req.user!.id) return res.status(403).json({ message: "Not authorized" });
 
         const { title, description, priority, category, dueDate, isCompleted } = req.body;
-        const updated = await storage.updateTodo(req.params.id, {
+        const updated = await storage.updateTodo(req.params.id as string, {
             ...(title !== undefined && { title }),
             ...(description !== undefined && { description }),
             ...(priority !== undefined && { priority }),
             ...(category !== undefined && { category }),
-            ...(dueDate !== undefined && { dueDate }),
+            ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
             ...(isCompleted !== undefined && { isCompleted }),
         });
         res.json(updated);

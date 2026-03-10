@@ -34,6 +34,7 @@ interface TeamMember {
 const ALL_ACTIONS: Action[] = [
   { id: 'leave', icon: 'calendar', label: 'Leave', color: '#38BDF8', route: '/new-leave' },
   { id: 'ticket', icon: 'headphones', label: 'Support', color: '#34D399', route: '/new-ticket' },
+  { id: 'holidays', icon: 'calendar', label: 'Holidays', color: '#A78BFA', route: '/holidays' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
   { id: 'myteam', icon: 'users', label: 'My Team', color: '#F59E0B', route: '/manage-team' },
   { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
