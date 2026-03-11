@@ -1,0 +1,153 @@
+{
+  "reads": [
+    {
+      "id": "f869d9de-ce39-47e8-a097-01c2bb28c808",
+      "userId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "chatRoomId": "private_0f0038f6-7f04-4dd5-89a1-3deff6aaf414",
+      "lastReadAt": "2026-03-11T18:25:22.816Z"
+    },
+    {
+      "id": "4aee740d-2667-4027-85cf-a531174c92d7",
+      "userId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "chatRoomId": "private_6d2b9725-9214-4b1c-80de-d80e62312949",
+      "lastReadAt": "2026-03-11T18:07:45.075Z"
+    },
+    {
+      "id": "e09a1338-275b-47bd-8df3-64cbaf141f0d",
+      "userId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "chatRoomId": "private_8c62eb5b-d8e3-4c3d-b4c1-20fe2f222662",
+      "lastReadAt": "2026-03-11T23:38:16.632Z"
+    },
+    {
+      "id": "8360cf57-bd69-4dbb-b166-d871f956f9bb",
+      "userId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "chatRoomId": "private_402bc818-74ea-40fc-9a99-5a22eb90e326",
+      "lastReadAt": "2026-03-11T18:25:51.845Z"
+    },
+    {
+      "id": "d68cf246-2655-4da6-85f0-664a311114a3",
+      "userId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "chatRoomId": "private_0f0038f6-7f04-4dd5-89a1-3deff6aaf414",
+      "lastReadAt": "2026-03-11T18:26:20.412Z"
+    },
+    {
+      "id": "44c9338a-ce9d-45da-b77d-16769c947820",
+      "userId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "chatRoomId": "team_edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "lastReadAt": "2026-03-11T18:25:04.566Z"
+    },
+    {
+      "id": "42ab2199-a381-4332-8bd3-462ab1392925",
+      "userId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "chatRoomId": "private_6d2b9725-9214-4b1c-80de-d80e62312949",
+      "lastReadAt": "2026-03-11T18:25:10.679Z"
+    },
+    {
+      "id": "4d81b3a2-29dd-4b67-ad73-15b60b671429",
+      "userId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "chatRoomId": "team_edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "lastReadAt": "2026-03-11T18:25:15.209Z"
+    }
+  ],
+  "msgs": [
+    {
+      "id": "2169b73a-77ba-444e-9394-f9fbab783460",
+      "senderId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "HI",
+      "createdAt": "2026-03-11T21:07:14.040Z"
+    },
+    {
+      "id": "a3f1ab34-47be-4938-be79-8fe417784303",
+      "senderId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": "6d2b9725-9214-4b1c-80de-d80e62312949",
+      "messageType": "private",
+      "content": "Hello",
+      "createdAt": "2026-03-11T21:07:29.433Z"
+    },
+    {
+      "id": "8243b7d0-a20c-4ef0-ac87-fe9d9be6d384",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Hello",
+      "createdAt": "2026-03-11T21:12:00.068Z"
+    },
+    {
+      "id": "3c9988e1-ad78-420b-a4e7-2134a82e6673",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Konnichiwa",
+      "createdAt": "2026-03-11T21:22:49.329Z"
+    },
+    {
+      "id": "84581b3a-f155-463d-bac2-348fb8b5ff33",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Hello there",
+      "createdAt": "2026-03-11T22:55:29.840Z"
+    },
+    {
+      "id": "d8bc1f2e-f38d-4a5b-9881-560d14ff1b37",
+      "senderId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Vaazhtukkal",
+      "createdAt": "2026-03-11T23:24:49.967Z"
+    },
+    {
+      "id": "d2000363-cd5f-4eda-99fd-6fee99ca13d4",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Alright",
+      "createdAt": "2026-03-11T23:34:12.490Z"
+    },
+    {
+      "id": "da18d836-0785-457b-aa1b-57fd285ffa31",
+      "senderId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": "6d2b9725-9214-4b1c-80de-d80e62312949",
+      "messageType": "private",
+      "content": "How are you doing",
+      "createdAt": "2026-03-11T23:37:44.909Z"
+    },
+    {
+      "id": "b261476f-d53c-436f-81bf-83daaac091b4",
+      "senderId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "got it",
+      "createdAt": "2026-03-11T23:50:06.158Z"
+    },
+    {
+      "id": "36f67a7e-f936-4d57-bb98-d4a21ee8a383",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": null,
+      "messageType": "team",
+      "content": "Wakata",
+      "createdAt": "2026-03-11T23:54:29.449Z"
+    },
+    {
+      "id": "d6146b68-8bb7-4ef5-8bf0-ab89ab5a31ff",
+      "senderId": "175f458e-d980-4e24-ba5e-e8595e8b501c",
+      "teamManagerId": "edd03124-8a9f-4e9f-bf5b-5d313d40331e",
+      "recipientId": "402bc818-74ea-40fc-9a99-5a22eb90e326",
+      "messageType": "private",
+      "content": "What the hell",
+      "createdAt": "2026-03-11T23:55:49.855Z"
+    }
+  ]
+}

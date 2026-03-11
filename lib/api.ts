@@ -283,4 +283,10 @@ export const apiClient = {
 
     sendPrivateChat: (userId: string, managerId: string, content: string) =>
         api(`/api/chat/private/${userId}`, { method: "POST", body: { content, managerId } }),
+
+    getUnreadChatCounts: () =>
+        api("/api/chat/unread"),
+
+    markChatRead: (chatRoomId: string) =>
+        api("/api/chat/read", { method: "POST", body: { chatRoomId } }),
 };

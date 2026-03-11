@@ -336,6 +336,19 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const chatReads = pgTable("chat_reads", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id),
+  chatRoomId: varchar("chat_room_id").notNull(), // 'team_${managerId}' or 'private_${partnerId}'
+  lastReadAt: timestamp("last_read_at").defaultNow().notNull(),
+});
+
+export type ChatRead = typeof chatReads.$inferSelect;
+
 // ── Zod Schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).pick({

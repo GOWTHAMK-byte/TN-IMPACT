@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TextInput, Pressable,
-    Platform, ActivityIndicator, KeyboardAvoidingView,
+    Platform, ActivityIndicator, KeyboardAvoidingView, Animated as RNAnimated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleBadgeColor } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { Avatar } from '@/components/ui';
 import { apiClient } from '@/lib/api';
 
@@ -20,35 +21,81 @@ interface ChatMsg {
     createdAt: string;
 }
 
+interface ToastData {
+    senderName: string;
+    content: string;
+}
+
 export default function PrivateChatScreen() {
     const { userId, userName, managerId } = useLocalSearchParams<{
         userId: string; userName: string; managerId: string;
     }>();
     const { user } = useAuth();
+    const { refreshData } = useData();
+    const router = useRouter();
 
     const [messages, setMessages] = useState<ChatMsg[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const knownIdsRef = useRef<Set<string>>(new Set());
+    const isFirstLoadRef = useRef(true);
+
+    // Toast state
+    const [toast, setToast] = useState<ToastData | null>(null);
+    const toastAnim = useRef(new RNAnimated.Value(-80)).current;
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = useCallback((data: ToastData) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(data);
+        RNAnimated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+        toastTimerRef.current = setTimeout(() => {
+            RNAnimated.timing(toastAnim, { toValue: -80, duration: 250, useNativeDriver: true }).start(() => {
+                setToast(null);
+            });
+        }, 3000);
+    }, [toastAnim]);
 
     const fetchMessages = useCallback(async () => {
         if (!userId || !managerId) return;
         try {
-            const data = await apiClient.getPrivateChat(userId, managerId);
+            const data: ChatMsg[] = await apiClient.getPrivateChat(userId, managerId);
             setMessages(data);
+
+            // Mark chat as read to clear badges
+            if (user) {
+                await apiClient.markChatRead(`private_${userId}`).catch(console.error);
+                await refreshData();
+            }
+
+            // Detect new messages from the other user (not on first load)
+            if (!isFirstLoadRef.current && user) {
+                for (const msg of data) {
+                    if (!knownIdsRef.current.has(msg.id) && msg.senderId !== user.id) {
+                        showToast({ senderName: msg.senderName, content: msg.content });
+                        break;
+                    }
+                }
+            }
+            isFirstLoadRef.current = false;
+
+            // Update known IDs
+            knownIdsRef.current = new Set(data.map(m => m.id));
         } catch (err) {
             console.error('Failed to load private chat:', err);
         } finally {
             setIsLoading(false);
         }
-    }, [userId, managerId]);
+    }, [userId, managerId, user, showToast, refreshData]);
 
     useEffect(() => {
         fetchMessages();
         pollRef.current = setInterval(fetchMessages, 5000);
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         };
     }, [fetchMessages]);
 
@@ -60,7 +107,6 @@ export default function PrivateChatScreen() {
         setInputText('');
         try {
             await apiClient.sendPrivateChat(userId, managerId, text);
-            // Fetch fresh list instead of optimistic add to avoid duplicates
             await fetchMessages();
         } catch (err) {
             console.error('Failed to send message:', err);
@@ -99,6 +145,9 @@ export default function PrivateChatScreen() {
         >
             {/* Header */}
             <View style={styles.chatHeader}>
+                <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
+                    <Feather name="arrow-left" size={20} color={Colors.text} />
+                </Pressable>
                 <Avatar
                     initials={(userName || 'U').substring(0, 2).toUpperCase()}
                     size={36}
@@ -109,6 +158,18 @@ export default function PrivateChatScreen() {
                     <Text style={styles.chatHeaderSub}>Direct Message</Text>
                 </View>
             </View>
+
+            {/* In-chat toast notification */}
+            {toast && (
+                <RNAnimated.View style={[styles.toast, { transform: [{ translateY: toastAnim }] }]}>
+                    <View style={styles.toastDot} />
+                    <View style={styles.toastContent}>
+                        <Text style={styles.toastSender} numberOfLines={1}>{toast.senderName}</Text>
+                        <Text style={styles.toastMsg} numberOfLines={1}>{toast.content}</Text>
+                    </View>
+                    <Feather name="message-square" size={16} color={Colors.accent} />
+                </RNAnimated.View>
+            )}
 
             {/* Messages */}
             {isLoading ? (
@@ -170,14 +231,38 @@ const styles = StyleSheet.create({
     chatHeader: {
         paddingHorizontal: 20, paddingVertical: 12,
         borderBottomWidth: 1, borderBottomColor: Colors.divider,
-        flexDirection: 'row', alignItems: 'center', gap: 12,
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingTop: Platform.OS === 'web' ? 24 : 12,
     },
+    backBtn: { paddingRight: 4 },
     chatHeaderText: {
         fontSize: 16, fontWeight: '700', color: Colors.text,
         fontFamily: 'Inter_700Bold',
     },
     chatHeaderSub: {
         fontSize: 12, color: Colors.textTertiary,
+    },
+
+    // Toast notification
+    toast: {
+        position: 'absolute', top: 56, left: 16, right: 16, zIndex: 100,
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: Colors.surface,
+        borderWidth: 1, borderColor: Colors.accent + '40',
+        borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+        shadowColor: Colors.accent, shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    },
+    toastDot: {
+        width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.accent,
+    },
+    toastContent: { flex: 1 },
+    toastSender: {
+        fontSize: 13, fontWeight: '700', color: Colors.accent,
+        fontFamily: 'Inter_700Bold',
+    },
+    toastMsg: {
+        fontSize: 12, color: Colors.textSecondary, marginTop: 1,
     },
 
     msgList: { paddingHorizontal: 16, paddingVertical: 12 },

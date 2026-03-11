@@ -3,10 +3,10 @@ import {
   users, leaves, leaveApprovals, leaveBalances,
   tickets, ticketComments, expenses, expenseApprovals,
   notifications, auditLogs, refreshTokens, projects, todos,
-  chatMessages,
+  chatMessages, chatReads,
 } from "@shared/schema";
 import type { UserRole, Project } from "@shared/schema";
-import { eq, and, or, ilike, desc, asc, sql, inArray, lt } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, inArray, lt, not, gt } from "drizzle-orm";
 
 // ── Users ──────────────────────────────────────────────────────────────────
 
@@ -555,4 +555,68 @@ export async function getPrivateChatPartners(userId: string, teamManagerId: stri
   if (ids.size === 0) return [];
 
   return db.select().from(users).where(inArray(users.id, [...ids]));
+}
+
+export async function markChatRead(userId: string, chatRoomId: string) {
+  const [existing] = await db.select().from(chatReads).where(
+    and(eq(chatReads.userId, userId), eq(chatReads.chatRoomId, chatRoomId))
+  );
+  if (existing) {
+    await db.update(chatReads).set({ lastReadAt: sql`now()` }).where(eq(chatReads.id, existing.id));
+  } else {
+    await db.insert(chatReads).values({ userId, chatRoomId });
+  }
+}
+
+export async function getUnreadChatCounts(userId: string, teamManagerId: string | null) {
+  const counts = { team: 0, private: {} as Record<string, number>, total: 0 };
+  
+  if (teamManagerId) {
+    const [teamRead] = await db.select().from(chatReads).where(
+      and(eq(chatReads.userId, userId), eq(chatReads.chatRoomId, `team_${teamManagerId}`))
+    );
+    const lastRead = teamRead?.lastReadAt || new Date(0);
+    
+    // In team chat, we don't count messages sent by ourselves
+    const unreadTeamMsgs = await db.select().from(chatMessages).where(
+      and(
+        eq(chatMessages.teamManagerId, teamManagerId),
+        eq(chatMessages.messageType, "team"),
+        not(eq(chatMessages.senderId, userId)),
+        gt(chatMessages.createdAt, lastRead)
+      )
+    );
+    counts.team = unreadTeamMsgs.length;
+    counts.total += counts.team;
+  }
+  
+  // For private, only count messages sent explicitly TO this user
+  const privateMsgsToMe = await db.select().from(chatMessages).where(
+    and(
+      eq(chatMessages.recipientId, userId),
+      eq(chatMessages.messageType, "private")
+    )
+  );
+  
+  const msgsBySender = privateMsgsToMe.reduce((acc, msg) => {
+    if (!acc[msg.senderId]) acc[msg.senderId] = [];
+    acc[msg.senderId].push(msg);
+    return acc;
+  }, {} as Record<string, typeof privateMsgsToMe>);
+  
+  for (const senderId of Object.keys(msgsBySender)) {
+    const chatRoomId = `private_${senderId}`;
+    const [readRecord] = await db.select().from(chatReads).where(
+      and(eq(chatReads.userId, userId), eq(chatReads.chatRoomId, chatRoomId))
+    );
+    const lastRead = readRecord?.lastReadAt || new Date(0);
+    
+    const unreadCount = msgsBySender[senderId].filter(m => m.createdAt > lastRead).length;
+    if (unreadCount > 0) {
+      counts.private[senderId] = unreadCount;
+      counts.total += unreadCount;
+    }
+  }
+  
+  return counts;
 }

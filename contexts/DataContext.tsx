@@ -130,6 +130,7 @@ interface DataContextValue {
   markNotificationRead: (id: string) => Promise<void>;
   addNotification: (notif: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => Promise<void>;
   unreadCount: number;
+  unreadChatCounts: { team: number; private: Record<string, number>; total: number };
   refreshData: () => Promise<void>;
   isLoading: boolean;
   projects: Project[];
@@ -150,6 +151,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadChatCounts, setUnreadChatCounts] = useState<{ team: number; private: Record<string, number>; total: number }>({ team: 0, private: {}, total: 0 });
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance>({ annual: 15, sick: 8, personal: 3 });
   const [projects, setProjects] = useState<Project[]>([]);
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -163,7 +165,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      const [leavesData, ticketsData, expensesData, notificationsData, balanceData, projectsData, todosData] = await Promise.all([
+      const [leavesData, ticketsData, expensesData, notificationsData, balanceData, projectsData, todosData, chatCountsData] = await Promise.all([
         apiClient.getLeaves().catch(() => []),
         apiClient.getTickets().catch(() => []),
         apiClient.getExpenses().catch(() => []),
@@ -171,12 +173,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         apiClient.getLeaveBalance().catch(() => ({ annual: 15, sick: 8, personal: 3 })),
         apiClient.getProjects().catch(() => []),
         apiClient.getTodos().catch(() => []),
+        apiClient.getUnreadChatCounts().catch(() => ({ team: 0, private: {}, total: 0 })),
       ]);
 
       setLeaves(leavesData);
       setTickets(ticketsData);
       setExpenses(expensesData);
       setNotifications(notificationsData);
+      setUnreadChatCounts(chatCountsData);
       setLeaveBalance(balanceData);
       setProjects(projectsData);
       setTodos(todosData);
@@ -188,6 +192,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Periodic polling for unread counts
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(async () => {
+      try {
+        const counts = await apiClient.getUnreadChatCounts();
+        setUnreadChatCounts(counts);
+      } catch (err) {
+        // silent fail for bg poll
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const createLeave = useCallback(async (leave: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'approvalHistory'>) => {
     const newLeave = await apiClient.createLeave({
@@ -311,9 +329,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     createExpense, updateExpenseStatus,
     createProject, updateProject,
     createTodo, toggleTodo, deleteTodo, refreshTodos,
-    markNotificationRead, addNotification,
-    unreadCount, refreshData: loadData, isLoading,
-  }), [leaves, tickets, expenses, notifications, leaveBalance, projects, todos, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, createProject, updateProject, createTodo, toggleTodo, deleteTodo, refreshTodos, markNotificationRead, addNotification, unreadCount, loadData, isLoading]);
+    markNotificationRead,        addNotification,
+        unreadCount,
+        unreadChatCounts,
+        refreshData: loadData, isLoading,
+  }), [leaves, tickets, expenses, notifications, leaveBalance, projects, todos, createLeave, updateLeaveStatus, createTicket, addTicketComment, updateTicketStatus, createExpense, updateExpenseStatus, createProject, updateProject, createTodo, toggleTodo, deleteTodo, refreshTodos, markNotificationRead, addNotification, unreadCount, unreadChatCounts, loadData, isLoading]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

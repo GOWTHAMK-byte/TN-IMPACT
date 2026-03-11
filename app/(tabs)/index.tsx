@@ -46,7 +46,7 @@ const ALL_ACTIONS: Action[] = [
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
-  const { leaves, tickets, expenses, leaveBalance, unreadCount, refreshData } = useData();
+  const { leaves, tickets, expenses, leaveBalance, unreadCount, unreadChatCounts, refreshData } = useData();
   const [refreshing, setRefreshing] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
@@ -110,6 +110,14 @@ export default function DashboardScreen() {
             <Text style={styles.userName}>{user?.name?.split(' ')[0]}</Text>
           </Animated.View>
           <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.topBarRight}>
+            <P onPress={() => router.push('/manage-team')} style={styles.notifBtn}>
+              <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
+              {(unreadChatCounts?.total || 0) > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>{unreadChatCounts.total > 9 ? '9+' : unreadChatCounts.total}</Text>
+                </View>
+              )}
+            </P>
             <P onPress={() => router.push('/notifications')} style={styles.notifBtn}>
               <Ionicons name="notifications-outline" size={22} color="#fff" />
               {unreadCount > 0 && (

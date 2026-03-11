@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleBadgeColor, type User } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { Avatar, EmptyState, GradientButton } from '@/components/ui';
 import { apiClient } from '@/lib/api';
 
@@ -32,7 +33,7 @@ export default function ManageTeamScreen() {
     // -- My Team state --
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
+    
     // -- Add Employee Modal state --
     const [isModalVisible, setModalVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +59,8 @@ export default function ManageTeamScreen() {
     useEffect(() => {
         fetchTeam();
     }, [fetchTeam]);
+
+    const { unreadChatCounts: unreadCounts } = useData();
 
     // ── Search employees ───────────────────────────────────────────────────
 
@@ -151,6 +154,13 @@ export default function ManageTeamScreen() {
                     hitSlop={8}
                 >
                     <Feather name="message-square" size={16} color={Colors.accent} />
+                    {(unreadCounts?.private?.[item.id] || 0) > 0 && (
+                        <View style={styles.unreadBadge}>
+                            <Text style={styles.unreadBadgeText}>
+                                {unreadCounts.private[item.id] > 9 ? '9+' : unreadCounts.private[item.id]}
+                            </Text>
+                        </View>
+                    )}
                 </Pressable>
             )}
             {isManager && (
@@ -212,6 +222,13 @@ export default function ManageTeamScreen() {
                         >
                             <Feather name="message-circle" size={18} color="#fff" />
                             <Text style={styles.chatBtnText}>Team Chat</Text>
+                            {(unreadCounts?.team || 0) > 0 && (
+                                <View style={styles.unreadBadgeHero}>
+                                    <Text style={styles.unreadBadgeText}>
+                                        {unreadCounts.team > 9 ? '9+' : unreadCounts.team}
+                                    </Text>
+                                </View>
+                            )}
                         </Pressable>
                     )}
                 </View>
@@ -325,9 +342,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     },
     chatBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: 6,
-        backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 8,
-        borderRadius: 10,
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: Colors.accent, paddingHorizontal: 16, height: 36, borderRadius: 18,
+        overflow: 'visible',
     },
     chatBtnText: {
         color: '#fff', fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold',
@@ -361,6 +378,7 @@ const styles = StyleSheet.create({
         width: 36, height: 36, borderRadius: 10,
         backgroundColor: Colors.accentLight,
         alignItems: 'center', justifyContent: 'center',
+        overflow: 'visible', zIndex: 1,
     },
 
     fabContainer: {
@@ -409,4 +427,19 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+    unreadBadge: {
+        position: 'absolute', top: -6, right: -6, zIndex: 10, elevation: 10,
+        backgroundColor: Colors.error, minWidth: 16, height: 16, borderRadius: 8,
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1.5, borderColor: Colors.card, paddingHorizontal: 3,
+    },
+    unreadBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+
+    unreadBadgeHero: {
+        position: 'absolute', top: -6, right: -6, zIndex: 10, elevation: 10,
+        backgroundColor: Colors.error, minWidth: 18, height: 18, borderRadius: 9,
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 2, borderColor: Colors.background, paddingHorizontal: 4,
+    },
 });

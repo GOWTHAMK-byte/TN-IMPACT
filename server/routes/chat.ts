@@ -5,6 +5,36 @@ import * as storage from "../storage";
 
 const router = Router();
 
+// GET /api/chat/unread — get unread counts for team and private chats
+router.get("/unread", authenticateToken, async (req, res) => {
+    try {
+        const currentUser = await storage.getUserById(req.user!.id);
+        if (!currentUser) return res.status(404).json({ message: "User not found" });
+
+        const teamManagerId = currentUser.role === "MANAGER" ? currentUser.id : currentUser.managerId;
+        const unreadCounts = await storage.getUnreadChatCounts(req.user!.id, teamManagerId || null);
+        
+        res.json(unreadCounts);
+    } catch (err) {
+        console.error("Get unread count error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// POST /api/chat/read — mark a chat room as read
+router.post("/read", authenticateToken, async (req, res) => {
+    try {
+        const { chatRoomId } = req.body;
+        if (!chatRoomId) return res.status(400).json({ message: "chatRoomId is required" });
+        
+        await storage.markChatRead(req.user!.id, chatRoomId);
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Mark chat read error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 // GET /api/chat/team/:managerId — get team group chat messages
 router.get("/team/:managerId", authenticateToken, async (req, res) => {
     try {
@@ -25,10 +55,11 @@ router.get("/team/:managerId", authenticateToken, async (req, res) => {
             return res.status(403).json({ message: "You are not a member of this team" });
         }
 
+        const beforeStr = typeof before === "string" ? before : undefined;
         const messages = await storage.getTeamChatMessages(
             managerId,
             limit ? parseInt(limit as string) : 50,
-            before as string | undefined,
+            beforeStr,
         );
 
         // Enrich messages with sender info
@@ -104,12 +135,14 @@ router.get("/private/:userId", authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "managerId query param is required" });
         }
 
+        const managerIdStr = typeof managerId === "string" ? managerId : Array.isArray(managerId) ? managerId[0] : "";
+        const beforeStr = typeof before === "string" ? before : undefined;
         const messages = await storage.getPrivateMessages(
             req.user!.id,
             userId,
-            managerId as string,
+            managerIdStr,
             limit ? parseInt(limit as string) : 50,
-            before ? (before as string) : undefined,
+            beforeStr,
         );
 
         // Enrich messages with sender info

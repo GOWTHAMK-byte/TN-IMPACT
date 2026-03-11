@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TextInput, Pressable,
-    Platform, ActivityIndicator, KeyboardAvoidingView,
+    Platform, ActivityIndicator, KeyboardAvoidingView, Animated as RNAnimated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleBadgeColor } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { Avatar } from '@/components/ui';
 import { apiClient } from '@/lib/api';
 
@@ -20,9 +21,15 @@ interface ChatMsg {
     createdAt: string;
 }
 
+interface ToastData {
+    senderName: string;
+    content: string;
+}
+
 export default function TeamChatScreen() {
     const { managerId, teamName } = useLocalSearchParams<{ managerId: string; teamName: string }>();
     const { user } = useAuth();
+    const { refreshData } = useData();
     const router = useRouter();
 
     const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -30,25 +37,61 @@ export default function TeamChatScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const knownIdsRef = useRef<Set<string>>(new Set());
+    const isFirstLoadRef = useRef(true);
+
+    // Toast state
+    const [toast, setToast] = useState<ToastData | null>(null);
+    const toastAnim = useRef(new RNAnimated.Value(-80)).current;
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = useCallback((data: ToastData) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(data);
+        RNAnimated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+        toastTimerRef.current = setTimeout(() => {
+            RNAnimated.timing(toastAnim, { toValue: -80, duration: 250, useNativeDriver: true }).start(() => {
+                setToast(null);
+            });
+        }, 3000);
+    }, [toastAnim]);
 
     const fetchMessages = useCallback(async () => {
         if (!managerId) return;
         try {
-            const data = await apiClient.getTeamChat(managerId);
+            const data: ChatMsg[] = await apiClient.getTeamChat(managerId);
             setMessages(data);
+
+            // Mark chat as read to clear badges
+            await apiClient.markChatRead(`team_${managerId}`).catch(console.error);
+            await refreshData();
+
+            // Detect new messages from others (not on first load)
+            if (!isFirstLoadRef.current && user) {
+                for (const msg of data) {
+                    if (!knownIdsRef.current.has(msg.id) && msg.senderId !== user.id) {
+                        showToast({ senderName: msg.senderName, content: msg.content });
+                        break; // Show toast for the newest one only
+                    }
+                }
+            }
+            isFirstLoadRef.current = false;
+
+            // Update known IDs
+            knownIdsRef.current = new Set(data.map(m => m.id));
         } catch (err) {
             console.error('Failed to load team chat:', err);
         } finally {
             setIsLoading(false);
         }
-    }, [managerId]);
+    }, [managerId, user, showToast, refreshData]);
 
     useEffect(() => {
         fetchMessages();
-        // Poll every 5 seconds
         pollRef.current = setInterval(fetchMessages, 5000);
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
         };
     }, [fetchMessages]);
 
@@ -60,11 +103,10 @@ export default function TeamChatScreen() {
         setInputText('');
         try {
             await apiClient.sendTeamChat(managerId, text);
-            // Fetch fresh list instead of optimistic add to avoid duplicates
             await fetchMessages();
         } catch (err) {
             console.error('Failed to send message:', err);
-            setInputText(text); // Restore on failure
+            setInputText(text);
         } finally {
             setIsSending(false);
         }
@@ -112,10 +154,25 @@ export default function TeamChatScreen() {
         >
             {/* Header info */}
             <View style={styles.chatHeader}>
+                <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
+                    <Feather name="arrow-left" size={20} color={Colors.text} />
+                </Pressable>
                 <View style={styles.headerDot} />
                 <Text style={styles.chatHeaderText}>{teamName || 'Team Chat'}</Text>
                 <Text style={styles.chatHeaderSub}>Group Chat</Text>
             </View>
+
+            {/* In-chat toast notification */}
+            {toast && (
+                <RNAnimated.View style={[styles.toast, { transform: [{ translateY: toastAnim }] }]}>
+                    <View style={styles.toastDot} />
+                    <View style={styles.toastContent}>
+                        <Text style={styles.toastSender} numberOfLines={1}>{toast.senderName}</Text>
+                        <Text style={styles.toastMsg} numberOfLines={1}>{toast.content}</Text>
+                    </View>
+                    <Feather name="message-circle" size={16} color={Colors.accent} />
+                </RNAnimated.View>
+            )}
 
             {/* Messages */}
             {isLoading ? (
@@ -178,7 +235,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20, paddingVertical: 12,
         borderBottomWidth: 1, borderBottomColor: Colors.divider,
         flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingTop: Platform.OS === 'web' ? 24 : 12, // More padding for web safely
     },
+    backBtn: { paddingRight: 4 },
     headerDot: {
         width: 10, height: 10, borderRadius: 5,
         backgroundColor: Colors.success,
@@ -189,6 +248,28 @@ const styles = StyleSheet.create({
     },
     chatHeaderSub: {
         fontSize: 12, color: Colors.textTertiary, marginLeft: 'auto',
+    },
+
+    // Toast notification
+    toast: {
+        position: 'absolute', top: 56, left: 16, right: 16, zIndex: 100,
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: Colors.surface,
+        borderWidth: 1, borderColor: Colors.accent + '40',
+        borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+        shadowColor: Colors.accent, shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    },
+    toastDot: {
+        width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.accent,
+    },
+    toastContent: { flex: 1 },
+    toastSender: {
+        fontSize: 13, fontWeight: '700', color: Colors.accent,
+        fontFamily: 'Inter_700Bold',
+    },
+    toastMsg: {
+        fontSize: 12, color: Colors.textSecondary, marginTop: 1,
     },
 
     msgList: { paddingHorizontal: 16, paddingVertical: 12 },
@@ -232,7 +313,6 @@ const styles = StyleSheet.create({
 
     emptyContainer: {
         alignItems: 'center', justifyContent: 'center', paddingVertical: 60,
-        // FlatList inverted flips this, so we rotate it back
         transform: [{ scaleY: -1 }],
     },
     emptyText: {
