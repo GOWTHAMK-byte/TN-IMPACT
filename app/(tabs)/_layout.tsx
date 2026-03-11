@@ -69,7 +69,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="todos"
         options={{
-          href: null,
+          title: 'Task',
+          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'checkbox' : 'checkbox-outline'} size={22} color={color} />,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: Colors.error, fontSize: 10, fontWeight: '900' },
+
         }}
       />
       <Tabs.Screen
