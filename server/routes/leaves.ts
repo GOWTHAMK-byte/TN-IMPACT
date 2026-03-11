@@ -106,7 +106,33 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/balance", authenticateToken, async (req, res) => {
     try {
         const balance = await storage.getLeaveBalance(req.user!.id);
-        res.json(balance);
+
+        // Get all approved leaves for this user to compute used days
+        const userLeaves = await storage.getLeaves({ employeeId: req.user!.id });
+        const approvedLeaves = userLeaves.filter(
+            (l) => l.status === "Approved" || l.status === "Pending_HR" || l.status === "Pending_Manager"
+        );
+
+        // Calculate days used per type
+        const daysUsed: Record<string, number> = { Annual: 0, Sick: 0, Personal: 0 };
+        for (const leave of approvedLeaves) {
+            const start = new Date(leave.startDate);
+            const end = new Date(leave.endDate);
+            const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+            const type = leave.leaveType;
+            if (type in daysUsed) {
+                daysUsed[type] += days;
+            }
+        }
+
+        res.json({
+            annual: Math.max(0, balance.annual - daysUsed.Annual),
+            sick: Math.max(0, balance.sick - daysUsed.Sick),
+            personal: Math.max(0, balance.personal - daysUsed.Personal),
+            // Also send the raw allocation and used counts for detail display
+            allocation: { annual: balance.annual, sick: balance.sick, personal: balance.personal },
+            used: { annual: daysUsed.Annual, sick: daysUsed.Sick, personal: daysUsed.Personal },
+        });
     } catch (err) {
         console.error("Get leave balance error:", err);
         res.status(500).json({ message: "Internal server error" });

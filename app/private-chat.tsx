@@ -59,15 +59,16 @@ export default function PrivateChatScreen() {
         setIsSending(true);
         setInputText('');
         try {
-            const msg = await apiClient.sendPrivateChat(userId, managerId, text);
-            setMessages(prev => [msg, ...prev]);
+            await apiClient.sendPrivateChat(userId, managerId, text);
+            // Fetch fresh list instead of optimistic add to avoid duplicates
+            await fetchMessages();
         } catch (err) {
             console.error('Failed to send message:', err);
             setInputText(text);
         } finally {
             setIsSending(false);
         }
-    }, [inputText, userId, managerId, isSending]);
+    }, [inputText, userId, managerId, isSending, fetchMessages]);
 
     const renderMessage = ({ item }: { item: ChatMsg }) => {
         const isMe = item.senderId === user?.id;

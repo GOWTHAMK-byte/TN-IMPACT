@@ -59,15 +59,16 @@ export default function TeamChatScreen() {
         setIsSending(true);
         setInputText('');
         try {
-            const msg = await apiClient.sendTeamChat(managerId, text);
-            setMessages(prev => [msg, ...prev]);
+            await apiClient.sendTeamChat(managerId, text);
+            // Fetch fresh list instead of optimistic add to avoid duplicates
+            await fetchMessages();
         } catch (err) {
             console.error('Failed to send message:', err);
             setInputText(text); // Restore on failure
         } finally {
             setIsSending(false);
         }
-    }, [inputText, managerId, isSending]);
+    }, [inputText, managerId, isSending, fetchMessages]);
 
     const openPrivateChat = useCallback((memberId: string, memberName: string) => {
         if (memberId === user?.id) return;

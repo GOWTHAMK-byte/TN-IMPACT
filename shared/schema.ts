@@ -313,6 +313,7 @@ export const todos = pgTable("todos", {
   priority: todoPriorityEnum("priority").notNull().default("Medium"),
   category: todoCategoryEnum("category").notNull().default("Work"),
   isCompleted: boolean("is_completed").notNull().default(false),
+  reminderSent: boolean("reminder_sent").notNull().default(false),
   dueDate: text("due_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
