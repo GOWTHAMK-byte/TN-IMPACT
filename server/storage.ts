@@ -431,6 +431,27 @@ export async function deleteTodo(id: string) {
   await db.delete(todos).where(eq(todos.id, id));
 }
 
+export async function getTodosNeedingReminder() {
+  const now = new Date();
+  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  // Find todos that have a due date within the next hour, aren't completed, and haven't been reminded
+  const allTodos = await db.select().from(todos).where(
+    and(
+      eq(todos.isCompleted, false),
+      eq(todos.reminderSent, false),
+    )
+  );
+  return allTodos.filter(t => {
+    if (!t.dueDate) return false;
+    const due = new Date(t.dueDate);
+    return due > now && due <= oneHourFromNow;
+  });
+}
+
+export async function markReminderSent(id: string) {
+  await db.update(todos).set({ reminderSent: true }).where(eq(todos.id, id));
+}
+
 // ── Team Management ────────────────────────────────────────────────────────
 
 export async function getTeamMembers(managerId: string) {
