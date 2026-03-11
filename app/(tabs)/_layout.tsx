@@ -69,14 +69,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="todos"
         options={{
-<<<<<<< HEAD
           href: null,
           title: 'Tasks',
-          tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'checkbox' : 'checkbox-outline'} size={22} color={color} />,
-=======
-          title: 'Tasks',
           tabBarIcon: ({ color, focused }: any) => <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={22} color={color} />,
->>>>>>> 7e5c6ec5c6c66773e5faf4316ff4927f43510e12
         }}
       />
       <Tabs.Screen

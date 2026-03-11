@@ -47,11 +47,14 @@ router.get("/my-team", authenticateToken, async (req, res) => {
 router.get("/search", authenticateToken, requireRole("MANAGER"), async (req, res) => {
     try {
         const { q } = req.query;
+        console.log(`[Team Search] Query received: "${q}" from user: ${req.user!.id} (Role: ${req.user!.role})`);
         const allUsers = await storage.getUsers({ search: q as string });
+        console.log(`[Team Search] storage.getUsers returned ${allUsers.length} users`);
         // Exclude the manager themselves
         const filtered = allUsers
             .filter((u) => u.id !== req.user!.id)
             .map(({ passwordHash, ...u }) => u);
+        console.log(`[Team Search] Returning ${filtered.length} users after filtering`);
         res.json(filtered);
     } catch (err) {
         console.error("Search employees error:", err);

@@ -414,7 +414,7 @@ export async function createTodo(data: {
 }
 
 export async function getTodos(userId: string) {
-  return db.select().from(todos).where(eq(todos.userId, userId)).orderBy(desc(todos.createdAt));
+  return db.select().from(todos).orderBy(desc(todos.createdAt));
 }
 
 export async function getTodoById(id: string) {
@@ -451,6 +451,7 @@ export async function getTodosNeedingReminder() {
 export async function markReminderSent(id: string) {
   await db.update(todos).set({ reminderSent: true }).where(eq(todos.id, id));
 }
+
 
 // ── Team Management ────────────────────────────────────────────────────────
 

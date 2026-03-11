@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { Project } from '@shared/schema';
@@ -188,6 +188,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Poll for new notifications every 30 seconds
+  const notifPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const pollNotifications = async () => {
+      try {
+        const updated = await apiClient.getNotifications();
+        setNotifications(updated);
+      } catch { /* silently ignore */ }
+    };
+    notifPollRef.current = setInterval(pollNotifications, 30000);
+    return () => {
+      if (notifPollRef.current) clearInterval(notifPollRef.current);
+    };
+  }, [isAuthenticated]);
+
 
   const createLeave = useCallback(async (leave: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'approvalHistory'>) => {
     const newLeave = await apiClient.createLeave({
