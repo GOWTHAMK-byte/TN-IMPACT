@@ -1,13 +1,93 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, RefreshControl, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl, TextInput, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData, Ticket, TicketStatus } from '@/contexts/DataContext';
-import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB, PriorityIndicator } from '@/components/ui';
+import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, PriorityIndicator } from '@/components/ui';
 import { useState, useCallback, useMemo } from 'react';
+
+// ─── Service Catalogue Data ───────────────────────────────────────────────────
+
+interface ServiceItem {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+interface CatalogueCategory {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+  items: ServiceItem[];
+}
+
+const CATALOGUE: CatalogueCategory[] = [
+  {
+    id: 'Hardware',
+    label: 'Hardware',
+    icon: 'hardware-chip-outline',
+    color: '#F59E0B',
+    items: [
+      { id: 'request_laptop', label: 'Request Laptop', icon: 'laptop-outline', description: 'New or replacement laptop' },
+      { id: 'request_monitor', label: 'Request Monitor', icon: 'desktop-outline', description: 'External display setup' },
+      { id: 'request_phone', label: 'Request Phone', icon: 'phone-portrait-outline', description: 'Work mobile device' },
+      { id: 'repair_replace', label: 'Repair / Replace', icon: 'build-outline', description: 'Fix or swap broken equipment' },
+    ],
+  },
+  {
+    id: 'Software',
+    label: 'Software',
+    icon: 'apps-outline',
+    color: '#6366F1',
+    items: [
+      { id: 'adobe_license', label: 'Adobe CC License', icon: 'color-palette-outline', description: 'Creative Cloud suite' },
+      { id: 'ms_office', label: 'Microsoft Office', icon: 'document-text-outline', description: 'Office 365 license' },
+      { id: 'dev_tools', label: 'Dev Tools', icon: 'code-slash-outline', description: 'IDEs, SDKs & dev software' },
+      { id: 'other_software', label: 'Other Software', icon: 'cube-outline', description: 'Any other application' },
+    ],
+  },
+  {
+    id: 'Access',
+    label: 'Access & Permissions',
+    icon: 'key-outline',
+    color: '#06B6D4',
+    items: [
+      { id: 'vpn_access', label: 'VPN Access', icon: 'shield-checkmark-outline', description: 'Remote network access' },
+      { id: 'shared_drive', label: 'Shared Drive Access', icon: 'folder-open-outline', description: 'Team drive permissions' },
+      { id: 'system_account', label: 'System Account', icon: 'person-add-outline', description: 'New account or role change' },
+      { id: 'password_reset', label: 'Password Reset', icon: 'lock-open-outline', description: 'Unlock or reset password' },
+    ],
+  },
+  {
+    id: 'Network',
+    label: 'Network',
+    icon: 'wifi-outline',
+    color: '#10B981',
+    items: [
+      { id: 'connectivity', label: 'Connectivity Issue', icon: 'cloud-offline-outline', description: 'Internet or intranet down' },
+      { id: 'wifi_setup', label: 'Wi-Fi Setup', icon: 'wifi-outline', description: 'Connect new device to network' },
+      { id: 'firewall_request', label: 'Port / Firewall', icon: 'git-network-outline', description: 'Open port or firewall rule' },
+    ],
+  },
+  {
+    id: 'Other',
+    label: 'Other',
+    icon: 'ellipsis-horizontal-circle-outline',
+    color: '#8B5CF6',
+    items: [
+      { id: 'general_request', label: 'General IT Request', icon: 'chatbox-ellipses-outline', description: 'Anything not listed above' },
+    ],
+  },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 type FilterType = 'All' | 'Open' | 'In Progress' | 'Resolved';
 const P = Pressable as any;
@@ -20,15 +100,32 @@ export default function TicketsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [showMyTickets, setShowMyTickets] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const isITAdmin = user?.role === 'IT_ADMIN' || user?.role === 'SUPER_ADMIN';
 
+  // Filter catalogue items by search
+  const filteredCatalogue = useMemo(() => {
+    if (!searchQuery.trim()) return CATALOGUE;
+    const q = searchQuery.toLowerCase();
+    return CATALOGUE.map(cat => ({
+      ...cat,
+      items: cat.items.filter(
+        item => item.label.toLowerCase().includes(q) || item.description.toLowerCase().includes(q) || cat.label.toLowerCase().includes(q)
+      ),
+    })).filter(cat => cat.items.length > 0);
+  }, [searchQuery]);
+
+  // Filter tickets
   const filteredTickets = useMemo(() => {
-    if (filter === 'Open') return tickets.filter(t => t.status === 'Open');
-    if (filter === 'In Progress') return tickets.filter(t => ['Assigned', 'In_Progress'].includes(t.status));
-    if (filter === 'Resolved') return tickets.filter(t => ['Resolved', 'Closed'].includes(t.status));
-    return tickets;
+    let result = tickets;
+    if (filter === 'Open') result = tickets.filter(t => t.status === 'Open');
+    else if (filter === 'In Progress') result = tickets.filter(t => ['Assigned', 'In_Progress'].includes(t.status));
+    else if (filter === 'Resolved') result = tickets.filter(t => ['Resolved', 'Closed'].includes(t.status));
+    return result;
   }, [tickets, filter]);
 
   const onRefresh = useCallback(async () => {
@@ -48,6 +145,11 @@ export default function TicketsScreen() {
     await addTicketComment(ticketId, { authorId: user.id, authorName: user.name, content: commentText.trim() });
     setCommentText('');
   }, [commentText, user, addTicketComment]);
+
+  const handleItemPress = (category: string, itemId: string, itemLabel: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({ pathname: '/new-ticket', params: { category, item: itemId, itemLabel } });
+  };
 
   const FILTERS: FilterType[] = ['All', 'Open', 'In Progress', 'Resolved'];
 
@@ -69,10 +171,11 @@ export default function TicketsScreen() {
 
   const isExpanded = (id: string) => expandedTicket === id;
 
-  const renderTicket = ({ item }: { item: Ticket }) => {
+  const renderTicket = (item: Ticket) => {
     const project = projects.find(p => p.id === item.projectId);
     return (
       <Card
+        key={item.id}
         style={styles.ticketCard}
         onPress={() => {
           Haptics.selectionAsync();
@@ -164,72 +267,265 @@ export default function TicketsScreen() {
 
   return (
     <View style={styles.container}>
-      <View
-        style={[StyleSheet.absoluteFill, { backgroundColor: Colors.background }]}
-      />
-      <View style={[styles.headerArea, { paddingTop: insets.top + webTopInset + 12 }]}>
-        <Text style={styles.pageTitle}>IT Support</Text>
-        <View style={styles.statsRow}>
-          {[
-            { lab: 'Open', val: tickets.filter(t => t.status === 'Open').length, col: Colors.accent },
-            { lab: 'Active', val: tickets.filter(t => ['Assigned', 'In_Progress'].includes(t.status)).length, col: Colors.warning },
-            { lab: 'Fixed', val: tickets.filter(t => t.status === 'Resolved').length, col: Colors.success },
-          ].map(s => (
-            <View key={s.lab} style={styles.statItem}>
-              <Text style={[styles.statValue, { color: s.col }]}>{s.val}</Text>
-              <Text style={styles.statLabel}>{s.lab}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <P
-            key={f}
-            onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
-          </P>
-        ))}
-      </View>
-
-      <FlatList
-        data={filteredTickets}
-        renderItem={renderTicket}
-        keyExtractor={item => item.id}
-        contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 118 : 100 }]}
-        scrollEnabled={!!filteredTickets.length}
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: Platform.OS === 'web' ? 118 : 100 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
-        ListEmptyComponent={<EmptyState icon="headphones" title="Tidied up!" subtitle="All support tickets are settled." />}
-      />
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
+      >
+        {/* ── Header ── */}
+        <View style={[styles.headerArea, { paddingTop: insets.top + webTopInset + 12 }]}>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.pageTitle}>IT Services</Text>
+              <Text style={styles.pageSubtitle}>Browse & request IT support</Text>
+            </View>
+            <View style={styles.headerStats}>
+              <View style={styles.headerStatPill}>
+                <View style={[styles.statDot, { backgroundColor: Colors.accent }]} />
+                <Text style={styles.headerStatText}>{tickets.filter(t => t.status === 'Open').length} open</Text>
+              </View>
+            </View>
+          </View>
+        </View>
 
-      <FAB onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/new-ticket'); }} />
+        {/* ── Search Bar ── */}
+        <View style={styles.searchContainer}>
+          <Feather name="search" size={16} color={Colors.textTertiary} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search services..."
+            placeholderTextColor={Colors.textTertiary}
+            style={styles.searchInput}
+          />
+          {searchQuery.length > 0 && (
+            <P onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Feather name="x" size={16} color={Colors.textTertiary} />
+            </P>
+          )}
+        </View>
+
+        {/* ── Catalogue ── */}
+        {filteredCatalogue.map((category, catIndex) => {
+          const isCatExpanded = expandedCategory === category.id || searchQuery.length > 0;
+          return (
+            <Animated.View
+              key={category.id}
+              entering={FadeInUp.delay(catIndex * 80).duration(500)}
+              style={styles.categorySection}
+            >
+              {/* Category Header */}
+              <P
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setExpandedCategory(isCatExpanded && !searchQuery ? null : category.id);
+                }}
+                style={({ pressed }: any) => [styles.categoryHeader, pressed && { opacity: 0.8 }]}
+              >
+                <View style={[styles.categoryIconWrap, { backgroundColor: category.color + '18' }]}>
+                  <Ionicons name={category.icon as any} size={20} color={category.color} />
+                </View>
+                <View style={styles.categoryInfo}>
+                  <Text style={styles.categoryLabel}>{category.label}</Text>
+                  <Text style={styles.categoryCount}>{category.items.length} service{category.items.length !== 1 ? 's' : ''}</Text>
+                </View>
+                <Animated.View style={{ transform: [{ rotate: isCatExpanded ? '90deg' : '0deg' }] }}>
+                  <Feather name="chevron-right" size={18} color={Colors.textTertiary} />
+                </Animated.View>
+              </P>
+
+              {/* Service Items Grid */}
+              {isCatExpanded && (
+                <View style={styles.itemsGrid}>
+                  {category.items.map((item, itemIndex) => (
+                    <Animated.View
+                      key={item.id}
+                      entering={FadeInRight.delay(itemIndex * 60).duration(400)}
+                      style={styles.itemCardWrapper}
+                    >
+                      <P
+                        onPress={() => handleItemPress(category.id, item.id, item.label)}
+                        style={({ pressed }: any) => [
+                          styles.itemCard,
+                          { borderColor: category.color + '25' },
+                          pressed && { transform: [{ scale: 0.96 }], borderColor: category.color + '60' },
+                        ]}
+                      >
+                        <View style={[styles.itemIconWrap, { backgroundColor: category.color + '12' }]}>
+                          <Ionicons name={item.icon as any} size={22} color={category.color} />
+                        </View>
+                        <Text style={styles.itemLabel} numberOfLines={2}>{item.label}</Text>
+                        <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
+                        <View style={[styles.itemArrow, { backgroundColor: category.color + '15' }]}>
+                          <Feather name="arrow-right" size={12} color={category.color} />
+                        </View>
+                      </P>
+                    </Animated.View>
+                  ))}
+                </View>
+              )}
+            </Animated.View>
+          );
+        })}
+
+        {filteredCatalogue.length === 0 && searchQuery.length > 0 && (
+          <EmptyState icon="search" title="No services found" subtitle={`No results for "${searchQuery}"`} />
+        )}
+
+        {/* ── My Tickets Section ── */}
+        <View style={styles.myTicketsSection}>
+          <P
+            onPress={() => { Haptics.selectionAsync(); setShowMyTickets(!showMyTickets); }}
+            style={({ pressed }: any) => [styles.myTicketsHeader, pressed && { opacity: 0.8 }]}
+          >
+            <View style={styles.myTicketsHeaderLeft}>
+              <Ionicons name="receipt-outline" size={20} color={Colors.accent} />
+              <Text style={styles.myTicketsTitle}>My Tickets</Text>
+              <View style={styles.ticketCountBadge}>
+                <Text style={styles.ticketCountText}>{tickets.length}</Text>
+              </View>
+            </View>
+            <Animated.View style={{ transform: [{ rotate: showMyTickets ? '90deg' : '0deg' }] }}>
+              <Feather name="chevron-right" size={18} color={Colors.textTertiary} />
+            </Animated.View>
+          </P>
+
+          {showMyTickets && (
+            <View style={styles.ticketsContent}>
+              {/* Filters */}
+              <View style={styles.filterRow}>
+                {FILTERS.map(f => (
+                  <P
+                    key={f}
+                    onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
+                    style={[styles.filterChip, filter === f && styles.filterChipActive]}
+                  >
+                    <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
+                  </P>
+                ))}
+              </View>
+
+              {/* Ticket List */}
+              {filteredTickets.length > 0 ? (
+                filteredTickets.map(ticket => renderTicket(ticket))
+              ) : (
+                <EmptyState icon="headphones" title="Tidied up!" subtitle="All support tickets are settled." />
+              )}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerArea: { paddingHorizontal: 20, paddingBottom: 8 },
-  pageTitle: { fontSize: 32, fontWeight: '900', color: Colors.text, letterSpacing: -1, marginBottom: 16 },
-  statsRow: { flexDirection: 'row', gap: 12 },
-  statItem: { flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 20, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  statValue: { fontSize: 24, fontWeight: '900' },
-  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2, fontWeight: '700', textTransform: 'uppercase' },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginVertical: 12 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  scroll: { paddingHorizontal: 20, gap: 4 },
+
+  // Header
+  headerArea: { paddingBottom: 8 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  pageTitle: { fontSize: 28, fontWeight: '900', color: Colors.text, letterSpacing: -1 },
+  pageSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2, fontWeight: '500' },
+  headerStats: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  headerStatPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.accent + '15', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  statDot: { width: 6, height: 6, borderRadius: 3 },
+  headerStatText: { fontSize: 12, fontWeight: '700', color: Colors.accent },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.card, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    marginTop: 12, marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text, padding: 0 },
+
+  // Category
+  categorySection: {
+    marginTop: 8,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden',
+  },
+  categoryHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  categoryIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  categoryInfo: { flex: 1 },
+  categoryLabel: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  categoryCount: { fontSize: 11, color: Colors.textTertiary, fontWeight: '600', marginTop: 1 },
+
+  // Items Grid
+  itemsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: 12, paddingBottom: 14, gap: 10,
+  },
+  itemCardWrapper: { width: '47%', flexGrow: 1 },
+  itemCard: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: 14, padding: 14, gap: 8,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    minHeight: 130,
+  },
+  itemIconWrap: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  itemLabel: { fontSize: 13, fontWeight: '700', color: Colors.text, lineHeight: 18 },
+  itemDesc: { fontSize: 11, color: Colors.textTertiary, lineHeight: 15, flex: 1 },
+  itemArrow: {
+    alignSelf: 'flex-end',
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // My Tickets
+  myTicketsSection: {
+    marginTop: 16,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden',
+  },
+  myTicketsHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  myTicketsHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  myTicketsTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  ticketCountBadge: {
+    minWidth: 22, height: 22, borderRadius: 11,
+    backgroundColor: Colors.accent + '20',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  },
+  ticketCountText: { fontSize: 11, fontWeight: '800', color: Colors.accent },
+  ticketsContent: { paddingHorizontal: 14, paddingBottom: 14 },
+
+  // Filters
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   filterChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  filterText: { fontSize: 13, fontWeight: '700', color: Colors.textTertiary },
+  filterText: { fontSize: 12, fontWeight: '700', color: Colors.textTertiary },
   filterTextActive: { color: Colors.background },
-  list: { paddingHorizontal: 20, gap: 12 },
+
+  // Ticket Card (kept from original)
   ticketCard: { gap: 10 },
   ticketHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   ticketTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  ticketTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, flex: 1 },
-  ticketMeta: { flexDirection: 'row', gap: 8 },
+  ticketTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1 },
+  ticketMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   metaText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '700' },
   expandedContent: { gap: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 16 },
