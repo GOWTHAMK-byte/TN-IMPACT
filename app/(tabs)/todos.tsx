@@ -8,6 +8,7 @@ import Colors from '@/constants/colors';
 import { useData, TodoPriority, TodoCategory, TodoItem } from '@/contexts/DataContext';
 import { Card, EmptyState, SectionHeader } from '@/components/ui';
 import { useState, useCallback, useMemo } from 'react';
+import { Calendar } from 'react-native-calendars';
 
 const P = Pressable as any;
 
@@ -44,6 +45,10 @@ function getCategoryIcon(category: string): string {
     return CATEGORIES.find(c => c.value === category)?.icon || 'tag';
 }
 
+// Visual Circular Clock Component removed as per user request for "type format"
+
+// Visual Circular Clock Component removed as per user request for "type format"
+
 export default function TodosScreen() {
     const insets = useSafeAreaInsets();
     const { todos, createTodo, toggleTodo, deleteTodo, refreshTodos } = useData();
@@ -56,7 +61,9 @@ export default function TodosScreen() {
     const [newDescription, setNewDescription] = useState('');
     const [newPriority, setNewPriority] = useState<TodoPriority>('Medium');
     const [newCategory, setNewCategory] = useState<TodoCategory>('Work');
-    const [newDueDate, setNewDueDate] = useState('');
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [selectedDate, setSelectedDate] = useState('');
+    const [timeInput, setTimeInput] = useState('12:00');
 
     const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -114,24 +121,31 @@ export default function TodosScreen() {
     const handleCreate = useCallback(async () => {
         if (!newTitle.trim()) return;
         try {
+            let finalDueDate = undefined;
+            if (selectedDate) {
+                finalDueDate = `${selectedDate} ${timeInput}`;
+            }
+
             await createTodo({
                 title: newTitle.trim(),
                 description: newDescription.trim(),
                 priority: newPriority,
                 category: newCategory,
-                dueDate: newDueDate ? newDueDate : undefined,
+                dueDate: finalDueDate,
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setNewTitle('');
             setNewDescription('');
             setNewPriority('Medium');
             setNewCategory('Work');
-            setNewDueDate('');
+            setSelectedDate('');
+            setTimeInput('12:00');
+            setShowCalendar(false);
             setModalVisible(false);
         } catch (err) {
             Alert.alert('Error', 'Failed to create task');
         }
-    }, [newTitle, newDescription, newPriority, newCategory, newDueDate, createTodo]);
+    }, [newTitle, newDescription, newPriority, newCategory, selectedDate, timeInput, createTodo]);
 
     const renderTodoCard = (todo: TodoItem, index: number) => {
         const priorityColor = getPriorityColor(todo.priority);
@@ -322,92 +336,144 @@ export default function TodosScreen() {
                     <P style={{ flex: 1 }} onPress={() => setModalVisible(false)} />
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHandle} />
-                        <Text style={styles.modalTitle}>New Task</Text>
-
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Task title"
-                            placeholderTextColor={Colors.textTertiary}
-                            value={newTitle}
-                            onChangeText={setNewTitle}
-                            autoFocus
-                        />
-
-                        <TextInput
-                            style={[styles.modalInput, styles.modalInputMulti]}
-                            placeholder="Description (optional)"
-                            placeholderTextColor={Colors.textTertiary}
-                            value={newDescription}
-                            onChangeText={setNewDescription}
-                            multiline
-                            numberOfLines={3}
-                        />
-
-                        {/* Due Date String Input (Web Datetime Fallback) */}
-                        <Text style={styles.modalLabel}>Due Date & Time (Optional)</Text>
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="YYYY-MM-DD HH:MM (e.g. 2026-03-07 14:00)"
-                            placeholderTextColor={Colors.textTertiary}
-                            value={newDueDate}
-                            onChangeText={setNewDueDate}
-                        />
-
-                        {/* Priority Picker */}
-                        <Text style={styles.modalLabel}>Priority</Text>
-                        <View style={styles.pickerRow}>
-                            {PRIORITIES.map(p => (
-                                <P
-                                    key={p.value}
-                                    onPress={() => { Haptics.selectionAsync(); setNewPriority(p.value); }}
-                                    style={[
-                                        styles.pickerChip,
-                                        newPriority === p.value && { backgroundColor: p.color + '20', borderColor: p.color },
-                                    ]}
-                                >
-                                    <View style={[styles.priorityDot, { backgroundColor: p.color }]} />
-                                    <Text style={[styles.pickerChipText, newPriority === p.value && { color: p.color }]}>{p.label}</Text>
-                                </P>
-                            ))}
-                        </View>
-
-                        {/* Category Picker */}
-                        <Text style={styles.modalLabel}>Category</Text>
-                        <View style={styles.pickerRow}>
-                            {CATEGORIES.filter(c => c.value !== 'All').map(c => (
-                                <P
-                                    key={c.value}
-                                    onPress={() => { Haptics.selectionAsync(); setNewCategory(c.value as TodoCategory); }}
-                                    style={[
-                                        styles.pickerChip,
-                                        newCategory === c.value && { backgroundColor: c.color + '20', borderColor: c.color },
-                                    ]}
-                                >
-                                    <Feather name={c.icon as any} size={12} color={newCategory === c.value ? c.color : Colors.textTertiary} />
-                                    <Text style={[styles.pickerChipText, newCategory === c.value && { color: c.color }]}>{c.label}</Text>
-                                </P>
-                            ))}
-                        </View>
-
-                        {/* Create Button */}
-                        <P
-                            onPress={handleCreate}
-                            style={({ pressed }: any) => [pressed && { opacity: 0.85 }]}
+                        <ScrollView 
+                            showsVerticalScrollIndicator={false} 
+                            contentContainerStyle={{ paddingBottom: 20 }}
+                            keyboardShouldPersistTaps="handled"
                         >
-                            <LinearGradient
-                                colors={Colors.gradients.accent as [string, string, ...string[]]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={styles.createBtn}
-                            >
-                                <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
-                                <Text style={styles.createBtnText}>Create Task</Text>
-                            </LinearGradient>
-                        </P>
+                            <Text style={styles.modalTitle}>New Task</Text>
 
-                        <P onPress={() => setModalVisible(false)} style={styles.cancelBtn}>
-                            <Text style={styles.cancelBtnText}>Cancel</Text>
-                        </P>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Task title"
+                                placeholderTextColor={Colors.textTertiary}
+                                value={newTitle}
+                                onChangeText={setNewTitle}
+                                autoFocus
+                            />
+
+                            <TextInput
+                                style={[styles.modalInput, styles.modalInputMulti]}
+                                placeholder="Description (optional)"
+                                placeholderTextColor={Colors.textTertiary}
+                                value={newDescription}
+                                onChangeText={setNewDescription}
+                                multiline
+                                numberOfLines={3}
+                            />
+
+                            {/* Due Date & Time Picker */}
+                            <Text style={styles.modalLabel}>Due Date & Time (Optional)</Text>
+                            <P 
+                                onPress={() => { Haptics.selectionAsync(); setShowCalendar(!showCalendar); }}
+                                style={styles.dateTrigger}
+                            >
+                                <Feather name="calendar" size={18} color={selectedDate ? Colors.accent : Colors.textTertiary} />
+                                <Text style={[styles.dateTriggerText, selectedDate && { color: Colors.text }]}>
+                                    {selectedDate ? `${selectedDate} ${timeInput}` : 'Tap to select date & time'}
+                                </Text>
+                                <Feather name={showCalendar ? "chevron-up" : "chevron-down"} size={18} color={Colors.textTertiary} />
+                            </P>
+
+                            {showCalendar && (
+                                <Animated.View entering={FadeInDown.duration(300)} style={styles.calendarContainer}>
+                                    <Calendar
+                                        onDayPress={(day: any) => setSelectedDate(day.dateString)}
+                                        markedDates={{
+                                            [selectedDate]: { selected: true, selectedColor: Colors.accent }
+                                        }}
+                                        theme={{
+                                            backgroundColor: 'transparent',
+                                            calendarBackground: 'transparent',
+                                            textSectionTitleColor: Colors.textSecondary,
+                                            selectedDayBackgroundColor: Colors.accent,
+                                            selectedDayTextColor: '#ffffff',
+                                            todayTextColor: Colors.accent,
+                                            dayTextColor: Colors.text,
+                                            textDisabledColor: Colors.textTertiary,
+                                            dotColor: Colors.accent,
+                                            selectedDotColor: '#ffffff',
+                                            arrowColor: Colors.accent,
+                                            monthTextColor: Colors.text,
+                                            indicatorColor: Colors.accent,
+                                            textDayFontSize: 13,
+                                            textMonthFontSize: 14,
+                                            textDayHeaderFontSize: 11
+                                        }}
+                                    />
+                                    
+                                    <View style={styles.timeSection}>
+                                        <Text style={styles.timeLabel}>Select Time (HH:MM)</Text>
+                                        <TextInput
+                                            style={styles.timeTextInput}
+                                            value={timeInput}
+                                            onChangeText={setTimeInput}
+                                            placeholder="12:00"
+                                            placeholderTextColor={Colors.textTertiary}
+                                            maxLength={5}
+                                            keyboardType="numbers-and-punctuation"
+                                        />
+                                        <Text style={styles.timeHint}>Enter time in 24h format (e.g. 14:30)</Text>
+                                    </View>
+                                </Animated.View>
+                            )}
+
+                            {/* Priority Picker */}
+                            <Text style={styles.modalLabel}>Priority</Text>
+                            <View style={styles.pickerRow}>
+                                {PRIORITIES.map(p => (
+                                    <P
+                                        key={p.value}
+                                        onPress={() => { Haptics.selectionAsync(); setNewPriority(p.value); }}
+                                        style={[
+                                            styles.pickerChip,
+                                            newPriority === p.value && { backgroundColor: p.color + '20', borderColor: p.color },
+                                        ]}
+                                    >
+                                        <View style={[styles.priorityDot, { backgroundColor: p.color }]} />
+                                        <Text style={[styles.pickerChipText, newPriority === p.value && { color: p.color }]}>{p.label}</Text>
+                                    </P>
+                                ))}
+                            </View>
+
+                            {/* Category Picker */}
+                            <Text style={styles.modalLabel}>Category</Text>
+                            <View style={styles.pickerRow}>
+                                {CATEGORIES.filter(c => c.value !== 'All').map(c => (
+                                    <P
+                                        key={c.value}
+                                        onPress={() => { Haptics.selectionAsync(); setNewCategory(c.value as TodoCategory); }}
+                                        style={[
+                                            styles.pickerChip,
+                                            newCategory === c.value && { backgroundColor: c.color + '20', borderColor: c.color },
+                                        ]}
+                                    >
+                                        <Feather name={c.icon as any} size={12} color={newCategory === c.value ? c.color : Colors.textTertiary} />
+                                        <Text style={[styles.pickerChipText, newCategory === c.value && { color: c.color }]}>{c.label}</Text>
+                                    </P>
+                                ))}
+                            </View>
+
+                            {/* Create Button */}
+                            <P
+                                onPress={handleCreate}
+                                style={({ pressed }: any) => [pressed && { opacity: 0.85 }]}
+                            >
+                                <LinearGradient
+                                    colors={Colors.gradients.accent as [string, string, ...string[]]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.createBtn}
+                                >
+                                    <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={styles.createBtnText}>Create Task</Text>
+                                </LinearGradient>
+                            </P>
+
+                            <P onPress={() => setModalVisible(false)} style={styles.cancelBtn}>
+                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            </P>
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -540,4 +606,102 @@ const styles = StyleSheet.create({
     createBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
     cancelBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 8 },
     cancelBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textTertiary },
+
+    // Date & Time Picker Styles
+    dateTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: Colors.inputBg,
+        borderWidth: 1,
+        borderColor: Colors.inputBorder,
+        borderRadius: 14,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        marginBottom: 14,
+    },
+    dateTriggerText: {
+        flex: 1,
+        fontSize: 15,
+        color: Colors.textTertiary,
+    },
+    calendarContainer: {
+        backgroundColor: 'rgba(255,255,255,0.02)',
+        borderRadius: 16,
+        padding: 10,
+        marginBottom: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    timeLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: Colors.text,
+        marginTop: 14,
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    timeRow: {
+        marginBottom: 10,
+    },
+    timeCol: {
+        gap: 8,
+    },
+    timeSubLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: Colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        paddingLeft: 4,
+    },
+    timeScroll: {
+        flexDirection: 'row',
+    },
+    timeChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        marginRight: 8,
+    },
+    timeChipActive: {
+        backgroundColor: Colors.accent + '20',
+        borderColor: Colors.accent,
+    },
+    timeChipText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: Colors.textTertiary,
+    },
+    timeChipTextActive: {
+        color: Colors.accent,
+    },
+    // Type format time input
+    timeSection: {
+        paddingTop: 10,
+        alignItems: 'center',
+    },
+    timeTextInput: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        fontSize: 24,
+        fontWeight: '700',
+        color: Colors.accent,
+        textAlign: 'center',
+        width: 120,
+        letterSpacing: 2,
+    },
+    timeHint: {
+        fontSize: 11,
+        color: Colors.textTertiary,
+        marginTop: 8,
+        fontWeight: '500',
+    },
 });

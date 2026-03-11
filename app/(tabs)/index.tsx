@@ -5,7 +5,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleLabel, getRoleBadgeColor, UserRole } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
+import { useData, TodoItem } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, Avatar, SectionHeader } from '@/components/ui';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
@@ -37,8 +37,8 @@ const ALL_ACTIONS: Action[] = [
   { id: 'holidays', icon: 'calendar', label: 'Holidays', color: '#A78BFA', route: '/holidays' },
   { id: 'expense', icon: 'credit-card', label: 'Expense', color: '#FBBF24', route: '/new-expense' },
   { id: 'myteam', icon: 'users', label: 'My Team', color: '#F59E0B', route: '/manage-team' },
-  { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
   { id: 'tasks', icon: 'check-circle', label: 'Tasks', color: '#06B6D4', route: '/(tabs)/todos' },
+  { id: 'directory', icon: 'users', label: 'Teams', color: '#818CF8', route: '/directory' },
   { id: 'hr', icon: 'heart', label: 'HR Hub', color: '#FB7185', route: '/(tabs)/hr', roles: ['HR_ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
   { id: 'finance', icon: 'dollar-sign', label: 'Finance', color: '#FBBF24', route: '/(tabs)/expenses', roles: ['FINANCE_ADMIN', 'SUPER_ADMIN'] },
 ];
@@ -46,7 +46,7 @@ const ALL_ACTIONS: Action[] = [
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
-  const { leaves, tickets, expenses, leaveBalance, unreadCount, unreadChatCounts, refreshData } = useData();
+  const { leaves, tickets, expenses, leaveBalance, unreadCount, unreadChatCounts, refreshData, todos, refreshTodos } = useData();
   const [refreshing, setRefreshing] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
@@ -70,12 +70,12 @@ export default function DashboardScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshData(), fetchTeam()]);
+    await Promise.all([refreshData(), fetchTeam(), refreshTodos()]);
     setRefreshing(false);
-  }, [refreshData, fetchTeam]);
+  }, [refreshData, fetchTeam, refreshTodos]);
 
   const roleActions = useMemo(() => {
-    return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 5);
+    return ALL_ACTIONS.filter(a => !a.roles || (user?.role && a.roles.includes(user.role))).slice(0, 6);
   }, [user?.role]);
 
   const pendingLeaves = leaves.filter(l => l.status.startsWith('Pending'));
@@ -263,6 +263,7 @@ export default function DashboardScreen() {
               </Card>
             </>
           )}
+
 
           {leaves.length > 0 && (
             <>

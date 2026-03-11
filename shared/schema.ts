@@ -417,7 +417,15 @@ export const createTodoSchema = z.object({
 });
 
 export const sendMessageSchema = z.object({
-  content: z.string().min(1).max(2000),
+  content: z.string().min(1, "Message cannot be empty").max(2000, "Message too long"),
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).pick({
+  senderId: true,
+  teamManagerId: true,
+  recipientId: true,
+  messageType: true,
+  content: true,
 });
 
 // ── Types ──────────────────────────────────────────────────────────────────
