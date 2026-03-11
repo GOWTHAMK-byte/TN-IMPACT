@@ -101,6 +101,14 @@ function RootLayoutNav() {
           name="manage-team"
           options={{ title: "Manage Team", headerShown: true }}
         />
+        <Stack.Screen
+          name="team-chat"
+          options={{ title: "Team Chat", headerShown: true }}
+        />
+        <Stack.Screen
+          name="private-chat"
+          options={{ title: "Private Chat", headerShown: true }}
+        />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

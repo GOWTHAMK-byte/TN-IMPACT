@@ -4,6 +4,7 @@ import {
     Platform, Modal, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useAuth, getRoleBadgeColor, type User } from '@/contexts/AuthContext';
 import { Avatar, EmptyState, GradientButton } from '@/components/ui';
@@ -23,6 +24,10 @@ interface TeamMember {
 export default function ManageTeamScreen() {
     const { user: currentUser } = useAuth();
     const isManager = currentUser?.role === 'MANAGER';
+    const router = useRouter();
+
+    // Resolve the team's manager ID
+    const teamManagerId = isManager ? currentUser?.id : currentUser?.managerId;
 
     // -- My Team state --
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -135,6 +140,19 @@ export default function ManageTeamScreen() {
                     <Text style={[styles.deptText, { color: getRoleBadgeColor(item.role as any) }]}>{item.department}</Text>
                 </View>
             </View>
+            {/* Chat icon for private DM */}
+            {item.id !== currentUser?.id && teamManagerId && (
+                <Pressable
+                    onPress={() => router.push({
+                        pathname: '/private-chat',
+                        params: { userId: item.id, userName: item.name, managerId: teamManagerId },
+                    })}
+                    style={({ pressed }) => [styles.dmBtn, pressed && { opacity: 0.6 }]}
+                    hitSlop={8}
+                >
+                    <Feather name="message-square" size={16} color={Colors.accent} />
+                </Pressable>
+            )}
             {isManager && (
                 <Pressable
                     onPress={() => handleRemove(item.id)}
@@ -177,10 +195,26 @@ export default function ManageTeamScreen() {
         <View style={styles.container}>
             {/* Header section */}
             <View style={styles.headerSection}>
-                <Text style={styles.sectionTitle}>My Team</Text>
-                <Text style={styles.sectionSubtitle}>
-                    {teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''}
-                </Text>
+                <View style={styles.headerRow}>
+                    <View>
+                        <Text style={styles.sectionTitle}>My Team</Text>
+                        <Text style={styles.sectionSubtitle}>
+                            {teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''}
+                        </Text>
+                    </View>
+                    {teamManagerId && teamMembers.length > 0 && (
+                        <Pressable
+                            onPress={() => router.push({
+                                pathname: '/team-chat',
+                                params: { managerId: teamManagerId, teamName: `${isManager ? 'My' : currentUser?.name?.split(' ')[0] + "'s"} Team` },
+                            })}
+                            style={({ pressed }) => [styles.chatBtn, pressed && { opacity: 0.7 }]}
+                        >
+                            <Feather name="message-circle" size={18} color="#fff" />
+                            <Text style={styles.chatBtnText}>Team Chat</Text>
+                        </Pressable>
+                    )}
+                </View>
             </View>
 
             {/* Team list */}
@@ -287,6 +321,17 @@ const styles = StyleSheet.create({
     headerSection: {
         paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8,
     },
+    headerRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    },
+    chatBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 8,
+        borderRadius: 10,
+    },
+    chatBtnText: {
+        color: '#fff', fontSize: 13, fontWeight: '700', fontFamily: 'Inter_700Bold',
+    },
     sectionTitle: {
         fontSize: 20, fontWeight: '700', color: Colors.text, fontFamily: 'Inter_700Bold',
     },
@@ -310,6 +355,11 @@ const styles = StyleSheet.create({
     removeBtn: {
         width: 36, height: 36, borderRadius: 10,
         backgroundColor: Colors.errorLight,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    dmBtn: {
+        width: 36, height: 36, borderRadius: 10,
+        backgroundColor: Colors.accentLight,
         alignItems: 'center', justifyContent: 'center',
     },
 

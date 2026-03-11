@@ -3,9 +3,10 @@ import {
   users, leaves, leaveApprovals, leaveBalances,
   tickets, ticketComments, expenses, expenseApprovals,
   notifications, auditLogs, refreshTokens, projects, todos,
+  chatMessages,
 } from "@shared/schema";
 import type { UserRole, Project } from "@shared/schema";
-import { eq, and, or, ilike, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, inArray, lt } from "drizzle-orm";
 
 // ── Users ──────────────────────────────────────────────────────────────────
 
@@ -456,4 +457,81 @@ export async function removeTeamMember(employeeId: string) {
     .where(eq(users.id, employeeId))
     .returning();
   return user;
+}
+
+// ── Chat Messages ──────────────────────────────────────────────────────────
+
+export async function getTeamChatMessages(teamManagerId: string, limit = 50, before?: string) {
+  const conditions = [
+    eq(chatMessages.teamManagerId, teamManagerId),
+    eq(chatMessages.messageType, "team"),
+  ];
+  if (before) {
+    conditions.push(lt(chatMessages.createdAt, new Date(before)));
+  }
+  return db
+    .select()
+    .from(chatMessages)
+    .where(and(...conditions))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(limit);
+}
+
+export async function getPrivateMessages(userA: string, userB: string, teamManagerId: string, limit = 50, before?: string) {
+  const conditions = [
+    eq(chatMessages.messageType, "private"),
+    eq(chatMessages.teamManagerId, teamManagerId),
+    or(
+      and(eq(chatMessages.senderId, userA), eq(chatMessages.recipientId, userB)),
+      and(eq(chatMessages.senderId, userB), eq(chatMessages.recipientId, userA)),
+    ),
+  ];
+  if (before) {
+    conditions.push(lt(chatMessages.createdAt, new Date(before)));
+  }
+  return db
+    .select()
+    .from(chatMessages)
+    .where(and(...conditions))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(limit);
+}
+
+export async function createChatMessage(data: {
+  senderId: string;
+  teamManagerId: string;
+  recipientId?: string | null;
+  messageType: "team" | "private";
+  content: string;
+}) {
+  const [message] = await db.insert(chatMessages).values(data).returning();
+  return message;
+}
+
+export async function getPrivateChatPartners(userId: string, teamManagerId: string) {
+  // Get distinct user IDs that have private messages with this user in this team
+  const sent = await db
+    .select({ id: chatMessages.recipientId })
+    .from(chatMessages)
+    .where(and(
+      eq(chatMessages.senderId, userId),
+      eq(chatMessages.teamManagerId, teamManagerId),
+      eq(chatMessages.messageType, "private"),
+    ))
+    .groupBy(chatMessages.recipientId);
+
+  const received = await db
+    .select({ id: chatMessages.senderId })
+    .from(chatMessages)
+    .where(and(
+      eq(chatMessages.recipientId, userId),
+      eq(chatMessages.teamManagerId, teamManagerId),
+      eq(chatMessages.messageType, "private"),
+    ))
+    .groupBy(chatMessages.senderId);
+
+  const ids = new Set([...sent.map(r => r.id), ...received.map(r => r.id)].filter(Boolean) as string[]);
+  if (ids.size === 0) return [];
+
+  return db.select().from(users).where(inArray(users.id, [...ids]));
 }

@@ -267,4 +267,20 @@ export const apiClient = {
 
     removeTeamMember: (employeeId: string) =>
         api(`/api/team/${employeeId}`, { method: "DELETE" }),
+
+    // Chat
+    getTeamChat: (managerId: string, before?: string) =>
+        api(`/api/chat/team/${managerId}${before ? `?before=${encodeURIComponent(before)}` : ""}`),
+
+    sendTeamChat: (managerId: string, content: string) =>
+        api(`/api/chat/team/${managerId}`, { method: "POST", body: { content } }),
+
+    getPrivateChat: (userId: string, managerId: string, before?: string) => {
+        const params = new URLSearchParams({ managerId });
+        if (before) params.set("before", before);
+        return api(`/api/chat/private/${userId}?${params.toString()}`);
+    },
+
+    sendPrivateChat: (userId: string, managerId: string, content: string) =>
+        api(`/api/chat/private/${userId}`, { method: "POST", body: { content, managerId } }),
 };

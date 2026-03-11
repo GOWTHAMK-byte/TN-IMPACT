@@ -99,6 +99,11 @@ export const todoCategoryEnum = pgEnum("todo_category", [
   "Other",
 ]);
 
+export const messageTypeEnum = pgEnum("message_type", [
+  "team",
+  "private",
+]);
+
 // ── Tables ─────────────────────────────────────────────────────────────────
 
 export const departments = pgTable("departments", {
@@ -313,6 +318,23 @@ export const todos = pgTable("todos", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id")
+    .notNull()
+    .references(() => users.id),
+  teamManagerId: varchar("team_manager_id")
+    .notNull()
+    .references(() => users.id),
+  recipientId: varchar("recipient_id")
+    .references(() => users.id),
+  messageType: messageTypeEnum("message_type").notNull().default("team"),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ── Zod Schemas ────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -380,6 +402,10 @@ export const createTodoSchema = z.object({
   dueDate: z.string().optional(),
 });
 
+export const sendMessageSchema = z.object({
+  content: z.string().min(1).max(2000),
+});
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type UserRole = "EMPLOYEE" | "MANAGER" | "HR_ADMIN" | "IT_ADMIN" | "FINANCE_ADMIN" | "SUPER_ADMIN";
@@ -392,3 +418,4 @@ export type Ticket = typeof tickets.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Todo = typeof todos.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;

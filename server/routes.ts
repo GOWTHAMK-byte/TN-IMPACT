@@ -11,6 +11,7 @@ import searchRoutes from "./routes/search";
 import projectsRoutes from "./routes/projects";
 import todoRoutes from "./routes/todos";
 import teamRoutes from "./routes/team";
+import chatRoutes from "./routes/chat";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API routes
@@ -24,6 +25,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/projects", projectsRoutes);
   app.use("/api/todos", todoRoutes);
   app.use("/api/team", teamRoutes);
+  app.use("/api/chat", chatRoutes);
 
   const httpServer = createServer(app);
 
