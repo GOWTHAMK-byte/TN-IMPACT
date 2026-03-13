@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, Pressable, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, RefreshControl, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -7,11 +7,280 @@ import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData, LeaveRequest } from '@/contexts/DataContext';
 import { Card, StatusBadge, getStatusType, formatStatus, EmptyState, FAB } from '@/components/ui';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { apiClient } from '@/lib/api';
 
 type FilterType = 'All' | 'Pending' | 'Approved' | 'Rejected';
 
 const P = Pressable as any;
+
+// ── Workload Analysis Types ──────────────────────────────────────────────────
+
+interface WorkloadAnalysis {
+  recommendation: 'Approve Leave' | 'Review Carefully';
+  workloadScore: number;
+  workloadLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
+  explanation: string;
+  factors: {
+    teamSize: number;
+    overlappingLeaves: number;
+    overlapRatio: number;
+    leaveDurationDays: number;
+    recentLeaveCount: number;
+    pendingApprovals: number;
+  };
+}
+
+// ── AI Insight Card Component ────────────────────────────────────────────────
+
+function AIInsightCard({ leaveId }: { leaveId: string }) {
+  const [analysis, setAnalysis] = useState<WorkloadAnalysis | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const fetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await apiClient.getLeaveWorkloadAnalysis(leaveId);
+        setAnalysis(data);
+      } catch (err) {
+        console.error('Workload analysis failed:', err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [leaveId]);
+
+  if (error) return null;
+
+  if (loading) {
+    return (
+      <View style={aiStyles.card}>
+        <View style={aiStyles.shimmerRow}>
+          <View style={aiStyles.shimmerIcon} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={[aiStyles.shimmerLine, { width: '60%' }]} />
+            <View style={[aiStyles.shimmerLine, { width: '80%' }]} />
+            <View style={[aiStyles.shimmerLine, { width: '40%' }]} />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (!analysis) return null;
+
+  const isApprove = analysis.recommendation === 'Approve Leave';
+  const recColor = isApprove ? Colors.success : Colors.warning;
+
+  const levelColors: Record<string, string> = {
+    Low: Colors.success,
+    Moderate: Colors.accent,
+    High: Colors.warning,
+    Critical: Colors.error,
+  };
+  const levelColor = levelColors[analysis.workloadLevel] || Colors.accent;
+
+  return (
+    <View style={aiStyles.card}>
+      {/* Header */}
+      <View style={aiStyles.header}>
+        <View style={aiStyles.aiIconWrap}>
+          <Text style={aiStyles.aiIcon}>🤖</Text>
+        </View>
+        <Text style={aiStyles.headerTitle}>AI Workload Insight</Text>
+        <View style={[aiStyles.levelBadge, { backgroundColor: levelColor + '20', borderColor: levelColor + '40' }]}> 
+          <Text style={[aiStyles.levelText, { color: levelColor }]}>{analysis.workloadLevel}</Text>
+        </View>
+      </View>
+
+      {/* Recommendation */}
+      <View style={[aiStyles.recRow, { backgroundColor: recColor + '10', borderColor: recColor + '25' }]}>
+        <Feather name={isApprove ? 'check-circle' : 'alert-triangle'} size={16} color={recColor} />
+        <Text style={[aiStyles.recText, { color: recColor }]}>{analysis.recommendation}</Text>
+      </View>
+
+      {/* Score Bar */}
+      <View style={aiStyles.scoreSection}>
+        <View style={aiStyles.scoreLabelRow}>
+          <Text style={aiStyles.scoreLabel}>Workload Score</Text>
+          <Text style={[aiStyles.scoreValue, { color: levelColor }]}>{analysis.workloadScore}/100</Text>
+        </View>
+        <View style={aiStyles.barTrack}>
+          <View
+            style={[
+              aiStyles.barFill,
+              {
+                width: `${Math.max(analysis.workloadScore, 3)}%`,
+                backgroundColor: levelColor,
+              },
+            ]}
+          />
+        </View>
+      </View>
+
+      {/* Factors */}
+      <View style={aiStyles.factorsRow}>
+        <View style={aiStyles.factorChip}>
+          <Feather name="users" size={11} color={Colors.textSecondary} />
+          <Text style={aiStyles.factorText}>{analysis.factors.teamSize} team</Text>
+        </View>
+        <View style={aiStyles.factorChip}>
+          <Feather name="layers" size={11} color={Colors.textSecondary} />
+          <Text style={aiStyles.factorText}>{analysis.factors.overlappingLeaves} overlap</Text>
+        </View>
+        <View style={aiStyles.factorChip}>
+          <Feather name="clock" size={11} color={Colors.textSecondary} />
+          <Text style={aiStyles.factorText}>{analysis.factors.leaveDurationDays}d</Text>
+        </View>
+        <View style={aiStyles.factorChip}>
+          <Feather name="activity" size={11} color={Colors.textSecondary} />
+          <Text style={aiStyles.factorText}>{analysis.factors.recentLeaveCount} recent</Text>
+        </View>
+      </View>
+
+      {/* Explanation */}
+      <Text style={aiStyles.explanation}>{analysis.explanation}</Text>
+    </View>
+  );
+}
+
+// ── AI Insight Card Styles ───────────────────────────────────────────────────
+
+const aiStyles = StyleSheet.create({
+  card: {
+    backgroundColor: 'rgba(6, 182, 212, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.15)',
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiIcon: { fontSize: 15 },
+  headerTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.accent,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  levelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  levelText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  recRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  recText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  scoreSection: { gap: 6 },
+  scoreLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  scoreValue: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  barTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  factorsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  factorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  factorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  explanation: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  // Shimmer / skeleton loading styles
+  shimmerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  shimmerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  shimmerLine: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+});
+
+// ── Main HR Screen ───────────────────────────────────────────────────────────
 
 export default function HRScreen() {
   const insets = useSafeAreaInsets();
@@ -22,6 +291,7 @@ export default function HRScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const isApprover = user?.role === 'MANAGER' || user?.role === 'HR_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isManager = user?.role === 'MANAGER';
 
   const filteredLeaves = useMemo(() => {
     let filtered = leaves;
@@ -53,6 +323,7 @@ export default function HRScreen() {
 
   const renderLeave = ({ item }: { item: LeaveRequest }) => {
     const project = projects.find(p => p.id === item.projectId);
+    const showAICard = isManager && item.status.startsWith('Pending');
     return (
       <Card style={styles.leaveCard}>
         <View style={styles.leaveHeader}>
@@ -77,6 +348,10 @@ export default function HRScreen() {
           <Text style={styles.leaveDateText}>{item.startDate} to {item.endDate}</Text>
         </View>
         {item.reason ? <Text style={styles.leaveReason} numberOfLines={2}>{item.reason}</Text> : null}
+
+        {/* AI Workload Insight Card — Manager only, pending leaves */}
+        {showAICard && <AIInsightCard leaveId={item.id} />}
+
         {isApprover && item.status.startsWith('Pending') && (
           <View style={styles.actionRow}>
             <P onPress={() => handleApprove(item)} style={({ pressed }: any) => [styles.approveBtn, pressed && { opacity: 0.8 }]}>

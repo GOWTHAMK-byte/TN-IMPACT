@@ -184,6 +184,9 @@ export const apiClient = {
     approveLeave: (id: string, action: string, comment: string) =>
         api(`/api/leaves/${id}/approve`, { method: "PATCH", body: { action, comment } }),
 
+    getLeaveWorkloadAnalysis: (leaveId: string) =>
+        api(`/api/leaves/${leaveId}/workload-analysis`),
+
     // Tickets
     getTickets: () =>
         api("/api/tickets"),

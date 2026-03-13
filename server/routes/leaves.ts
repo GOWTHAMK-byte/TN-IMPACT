@@ -6,6 +6,20 @@ import * as storage from "../storage";
 
 const router = Router();
 
+// GET /api/leaves/:id/workload-analysis – AI workload insight (Manager only)
+router.get("/:id/workload-analysis", authenticateToken, requireRole("MANAGER"), async (req, res) => {
+    try {
+        const leave = await storage.getLeaveById(req.params.id as string);
+        if (!leave) return res.status(404).json({ message: "Leave not found" });
+
+        const analysis = await storage.analyzeTeamWorkload(req.user!.id, leave.id);
+        res.json(analysis);
+    } catch (err) {
+        console.error("Workload analysis error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 // POST /api/leaves – create leave request
 router.post("/", authenticateToken, validate(createLeaveSchema), async (req, res) => {
     try {

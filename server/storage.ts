@@ -621,3 +621,201 @@ export async function getUnreadChatCounts(userId: string, teamManagerId: string 
   
   return counts;
 }
+
+// ── AI Workload Analysis ───────────────────────────────────────────────────
+
+export interface WorkloadAnalysis {
+  recommendation: "Approve Leave" | "Review Carefully";
+  workloadScore: number;
+  workloadLevel: "Low" | "Moderate" | "High" | "Critical";
+  explanation: string;
+  factors: {
+    teamSize: number;
+    overlappingLeaves: number;
+    overlapRatio: number;
+    leaveDurationDays: number;
+    recentLeaveCount: number;
+    pendingApprovals: number;
+  };
+}
+
+export async function analyzeTeamWorkload(managerId: string, leaveId: string): Promise<WorkloadAnalysis> {
+  // 1. Get the leave request
+  const leave = await getLeaveById(leaveId);
+  if (!leave) throw new Error("Leave not found");
+
+  // 2. Get the employee info
+  const employee = await getUserById(leave.employeeId);
+  const employeeName = employee?.name || "Employee";
+
+  // 3. Get team members under this manager
+  const team = await getTeamMembers(managerId);
+  const teamSize = team.length;
+
+  // 4. Calculate leave duration
+  const startDate = new Date(leave.startDate);
+  const endDate = new Date(leave.endDate);
+  const leaveDurationDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+  // 5. Find overlapping leaves (approved or pending) from other team members
+  const teamIds = team.map(t => t.id).filter(id => id !== leave.employeeId);
+  let overlappingLeaves = 0;
+  let overlappingNames: string[] = [];
+
+  if (teamIds.length > 0) {
+    const allTeamLeaves = await db.select().from(leaves).where(
+      and(
+        inArray(leaves.employeeId, teamIds),
+        or(
+          eq(leaves.status, "Approved"),
+          eq(leaves.status, "Pending_Manager"),
+          eq(leaves.status, "Pending_HR"),
+        )
+      )
+    );
+
+    for (const tl of allTeamLeaves) {
+      const tlStart = new Date(tl.startDate);
+      const tlEnd = new Date(tl.endDate);
+      // Check date overlap
+      if (tlStart <= endDate && tlEnd >= startDate) {
+        overlappingLeaves++;
+        const member = team.find(t => t.id === tl.employeeId);
+        if (member && !overlappingNames.includes(member.name)) {
+          overlappingNames.push(member.name);
+        }
+      }
+    }
+  }
+
+  // 6. Calculate overlap ratio
+  const overlapRatio = teamSize > 0 ? overlappingLeaves / teamSize : 0;
+
+  // 7. Recent leave frequency — leaves taken by this employee in the last 90 days
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const recentLeaves = await db.select().from(leaves).where(
+    and(
+      eq(leaves.employeeId, leave.employeeId),
+      or(
+        eq(leaves.status, "Approved"),
+        eq(leaves.status, "Pending_Manager"),
+        eq(leaves.status, "Pending_HR"),
+      ),
+      gt(leaves.createdAt, ninetyDaysAgo)
+    )
+  );
+  // Exclude the current leave from the count
+  const recentLeaveCount = recentLeaves.filter(rl => rl.id !== leaveId).length;
+
+  // 8. Count other pending approvals for the manager
+  const allPending = await db.select().from(leaves).where(
+    and(
+      eq(leaves.managerId, managerId),
+      or(
+        eq(leaves.status, "Pending_Manager"),
+        eq(leaves.status, "Pending_HR"),
+      )
+    )
+  );
+  const pendingApprovals = allPending.filter(p => p.id !== leaveId).length;
+
+  // ── Score Calculation ──────────────────────────────────────────────────
+
+  let score = 0;
+
+  // Factor 1: Overlapping leaves (30%)  — more overlaps = higher score
+  const overlapScore = Math.min(overlappingLeaves * 20, 100);
+  score += overlapScore * 0.30;
+
+  // Factor 2: Overlap ratio (25%) — what fraction of team is out
+  const ratioScore = Math.min(overlapRatio * 100 * 2, 100);
+  score += ratioScore * 0.25;
+
+  // Factor 3: Leave duration (15%) — longer = higher impact
+  const durationScore = Math.min(leaveDurationDays * 8, 100);
+  score += durationScore * 0.15;
+
+  // Factor 4: Leave type criticality (10%) — Sick/Bereavement should be easier to approve
+  const typeScores: Record<string, number> = {
+    Sick: 10, Bereavement: 5, Maternity: 15, Paternity: 15,
+    Annual: 40, Personal: 50,
+  };
+  const typeScore = typeScores[leave.leaveType] || 30;
+  score += typeScore * 0.10;
+
+  // Factor 5: Recent frequency (10%) — more recent leaves = higher concern
+  const freqScore = Math.min(recentLeaveCount * 25, 100);
+  score += freqScore * 0.10;
+
+  // Factor 6: Pending approvals backlog (10%) — more pending = busier team
+  const pendingScore = Math.min(pendingApprovals * 20, 100);
+  score += pendingScore * 0.10;
+
+  // Round
+  const workloadScore = Math.round(Math.min(score, 100));
+
+  // ── Classification ─────────────────────────────────────────────────────
+
+  let workloadLevel: WorkloadAnalysis["workloadLevel"];
+  let recommendation: WorkloadAnalysis["recommendation"];
+
+  if (workloadScore <= 30) {
+    workloadLevel = "Low";
+    recommendation = "Approve Leave";
+  } else if (workloadScore <= 60) {
+    workloadLevel = "Moderate";
+    recommendation = "Approve Leave";
+  } else if (workloadScore <= 80) {
+    workloadLevel = "High";
+    recommendation = "Review Carefully";
+  } else {
+    workloadLevel = "Critical";
+    recommendation = "Review Carefully";
+  }
+
+  // ── Explanation ────────────────────────────────────────────────────────
+
+  const parts: string[] = [];
+
+  if (teamSize === 0) {
+    parts.push(`${employeeName} has no team members assigned, so approving this leave has minimal impact.`);
+  } else {
+    parts.push(`Team has ${teamSize} member${teamSize > 1 ? "s" : ""}.`);
+  }
+
+  if (overlappingLeaves > 0) {
+    parts.push(`${overlappingLeaves} team member${overlappingLeaves > 1 ? "s" : ""} (${overlappingNames.slice(0, 3).join(", ")}${overlappingNames.length > 3 ? "..." : ""}) already ${overlappingLeaves > 1 ? "have" : "has"} overlapping leaves during this period.`);
+  } else {
+    parts.push("No other team members are on leave during this period.");
+  }
+
+  if (leaveDurationDays > 5) {
+    parts.push(`This is a ${leaveDurationDays}-day leave, which is a significant duration.`);
+  } else {
+    parts.push(`Leave duration is ${leaveDurationDays} day${leaveDurationDays > 1 ? "s" : ""}.`);
+  }
+
+  if (recentLeaveCount > 0) {
+    parts.push(`${employeeName} has taken ${recentLeaveCount} other leave${recentLeaveCount > 1 ? "s" : ""} in the past 90 days.`);
+  }
+
+  if (leave.leaveType === "Sick" || leave.leaveType === "Bereavement") {
+    parts.push(`This is a ${leave.leaveType.toLowerCase()} leave, which generally warrants priority approval.`);
+  }
+
+  return {
+    recommendation,
+    workloadScore,
+    workloadLevel,
+    explanation: parts.join(" "),
+    factors: {
+      teamSize,
+      overlappingLeaves,
+      overlapRatio: Math.round(overlapRatio * 100) / 100,
+      leaveDurationDays,
+      recentLeaveCount,
+      pendingApprovals,
+    },
+  };
+}
