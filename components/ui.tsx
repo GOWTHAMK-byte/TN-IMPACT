@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   fabContainer: {
     position: 'absolute',
     right: 20,
-    bottom: Platform.OS === 'web' ? 100 : 80,
+    bottom: Platform.OS === 'web' ? 100 : 100,
     zIndex: 100,
   },
   fab: {

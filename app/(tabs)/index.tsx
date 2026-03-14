@@ -141,7 +141,7 @@ export default function DashboardScreen() {
           </Animated.View>
 
           <SectionHeader title="Quick Actions" />
-          <View style={styles.quickGrid}>
+          <View style={[styles.quickGrid, { paddingLeft: 35 }]}>
             {roleActions.map((action, index) => (
               <Animated.View
                 key={action.id}
@@ -311,6 +311,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { paddingHorizontal: 20, paddingTop: 10 },
   content: { gap: 12 },
